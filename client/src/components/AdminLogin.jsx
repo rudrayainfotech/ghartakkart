@@ -32,7 +32,7 @@ export default function AdminLogin() {
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black flex flex-col justify-center items-center p-4">
       {/* Back to Customer Store button */}
       <a
-        href="https://vertexpsbyri.web.app"
+        href="/"
         className="mb-6 flex items-center gap-2 text-xs font-bold text-gray-300 hover:text-white bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl backdrop-blur-md transition-all"
       >
         <ArrowLeft className="w-4 h-4" />

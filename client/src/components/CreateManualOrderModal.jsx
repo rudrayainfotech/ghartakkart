@@ -403,7 +403,7 @@ ${itemsText}${giftText}
 💳 *Payment Mode:* ${order.payment_method || 'Cash on Delivery'} (${order.payment_status || 'Pending'})
 ━━━━━━━━━━━━━━━━━━━━━━
 🚀 Track your order or order again at:
-https://vertexpsbyri.web.app
+https://ghartakkart.com
 
 ${storePhone ? '📞 Support Call/WhatsApp: ' + storePhone : ''}
 Thank you for shopping with ${storeName}! 🙏`;

@@ -422,13 +422,13 @@ export function normalizeProductsList(raw) {
       : (p.image ? [p.image] : []);
     const imgs = rawImgs.map(img => {
       if (typeof img === 'string' && img.startsWith('/product-images/')) {
-        return `https://vertexpsbyri.web.app${img}`;
+        return img;
       }
       return img;
     });
     let mainImg = imgs[0] || p.image || '';
     if (typeof mainImg === 'string' && mainImg.startsWith('/product-images/')) {
-      mainImg = `https://vertexpsbyri.web.app${mainImg}`;
+      mainImg = mainImg;
     }
     const rawUnit = String(p.unit ?? '').trim();
     const baseUnit = (rawUnit && rawUnit !== '0') ? rawUnit : '1 unit';
@@ -1400,6 +1400,52 @@ export function StoreProvider({ children }) {
           if (rawWallets && typeof rawWallets === 'object') {
             setWallets(rawWallets);
             try { localStorage.setItem('gk_customer_wallets', JSON.stringify(rawWallets)); } catch {}
+          }
+        }
+
+        // Supabase Admin Nodes Fallback
+        if (isSupabaseConfigured) {
+          try {
+            const [sbStaff, sbStaffUsers, sbAudit, sbVendors, sbLedger, sbExpenses, sbIncomes] = await Promise.all([
+              fetchNodeFromSupabase('staff'),
+              fetchNodeFromSupabase('staff_users'),
+              fetchNodeFromSupabase('audit_logs'),
+              fetchNodeFromSupabase('vendors'),
+              fetchNodeFromSupabase('vendor_ledgers'),
+              fetchNodeFromSupabase('expenses'),
+              fetchNodeFromSupabase('other_incomes')
+            ]);
+            if (sbStaff && Array.isArray(sbStaff) && sbStaff.length) {
+              setStaff(sbStaff);
+              try { localStorage.setItem('gk_staff', JSON.stringify(sbStaff)); } catch {}
+            }
+            if (sbStaffUsers && Array.isArray(sbStaffUsers) && sbStaffUsers.length) {
+              setStaffUsers(sbStaffUsers);
+              try { localStorage.setItem('gk_staff_users', JSON.stringify(sbStaffUsers)); } catch {}
+            }
+            if (sbAudit && Array.isArray(sbAudit) && sbAudit.length) {
+              setAuditLogs(sbAudit);
+              try { localStorage.setItem('gk_audit_logs', JSON.stringify(sbAudit)); } catch {}
+            }
+            if (sbVendors && Array.isArray(sbVendors) && sbVendors.length) {
+              setVendors(sbVendors);
+              try { localStorage.setItem('gk_vendors', JSON.stringify(sbVendors)); } catch {}
+            }
+            if (sbLedger && Array.isArray(sbLedger) && sbLedger.length) {
+              setVendorLedger(sbLedger);
+              isVendorLedgerLoaded.current = true;
+              try { localStorage.setItem('gk_vendor_ledger', JSON.stringify(sbLedger)); } catch {}
+            }
+            if (sbExpenses && Array.isArray(sbExpenses) && sbExpenses.length) {
+              setExpenses(sbExpenses);
+              try { localStorage.setItem('gk_expenses', JSON.stringify(sbExpenses)); } catch {}
+            }
+            if (sbIncomes && Array.isArray(sbIncomes) && sbIncomes.length) {
+              setOtherIncomes(sbIncomes);
+              try { localStorage.setItem('gk_other_incomes', JSON.stringify(sbIncomes)); } catch {}
+            }
+          } catch (sbAdminErr) {
+            console.warn('[Supabase Admin Loader] warning:', sbAdminErr);
           }
         }
       } else {

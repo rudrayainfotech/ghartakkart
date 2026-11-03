@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore, syncToFirebase, FIREBASE_DB_URL, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS } from '../context/StoreContext.jsx';
+import { fetchNodeFromSupabase } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
   isNotificationSupported,
@@ -341,7 +342,7 @@ ${itemsText}${giftText}
 💳 *Payment Mode:* ${order.payment_method || 'Cash on Delivery'} (${order.payment_status || 'Pending'})
 ━━━━━━━━━━━━━━━━━━━━━━
 🚀 Track your order live at:
-https://vertexpsbyri.web.app
+https://ghartakkart.com
 
 ${storePhone ? '📞 Support Call/WhatsApp: ' + storePhone : ''}
 Thank you for shopping with ${storeName}! 🙏`;
@@ -555,10 +556,9 @@ Thank you for shopping with ${storeName}! 🙏`;
     }
   });
 
-  // Load gift fulfillments from Firebase on initial render
+  // Load gift fulfillments on initial render
   React.useEffect(() => {
-    fetch('https://vertexpsbyri-default-rtdb.asia-southeast1.firebasedatabase.app/gift_fulfillments.json')
-      .then(res => res.json())
+    fetchNodeFromSupabase('gift_fulfillments')
       .then(data => {
         if (data && typeof data === 'object') {
           setGiftFulfillments(data);
@@ -5005,7 +5005,7 @@ Thank you for shopping with ${storeName}! 🙏`;
 
             {/* Storefront Link */}
             <a
-              href="https://vertexpsbyri.web.app"
+              href="/"
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 shadow-2xs transition-colors shrink-0 whitespace-nowrap"
