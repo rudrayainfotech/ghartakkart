@@ -574,7 +574,18 @@ export function StoreProvider({ children }) {
   const [orders, setOrders] = useState(() => {
     try {
       const saved = localStorage.getItem('gk_orders');
-      return saved ? JSON.parse(saved) : [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      if (Array.isArray(parsed)) {
+        const FAKE_NAMES = new Set([
+          'Mayank Agrawal', 'Rahul Sharma', 'Amit Kumar', 'Pooja Verma', 'Rohit Singh',
+          'Deepak Gupta', 'Suresh Chandra', 'Priya Bansal', 'Vikram Singh', 'Neha Sharma',
+          'Manoj Kumar', 'Sunita Devi', 'Dharmendra Singh', 'Ankit Sharma', 'Rajeev Kumar',
+          'Sanjay Agrawal', 'Vipin Kumar', 'Gaurav Chaudhary', 'Kavita Rani', 'Sachin Kumar',
+          'Rahul Verma', 'Pooja Malhotra'
+        ]);
+        return parsed.filter(o => o && o.id && !FAKE_NAMES.has(o.customer_name));
+      }
+      return [];
     } catch {
       return [];
     }
@@ -1092,7 +1103,7 @@ export function StoreProvider({ children }) {
     // 2. Merge local orders: if a local order is missing on Supabase
     // or has a strictly newer updated_at timestamp, keep the newer one and heal
     const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
-    for (const lOrder of cleanLocalList = localList) {
+    for (const lOrder of localList) {
       if (!lOrder || !lOrder.id) continue;
       const existingRemote = orderMap.get(lOrder.id);
       if (!existingRemote) {
@@ -1216,7 +1227,7 @@ export function StoreProvider({ children }) {
             sbInbox.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
             combinedOrders = Array.from(orderMap.values());
           }
-          if (combinedOrders.length > 0) {
+          if (Array.isArray(sbOrders) || combinedOrders.length > 0) {
             await mergeAndSyncOrders(combinedOrders, isBackgroundPoll);
           }
 
