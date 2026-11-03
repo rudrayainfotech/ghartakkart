@@ -1,4 +1,4 @@
-import { FIREBASE_DB_URL } from '../context/StoreContext.jsx';
+import { syncPartnerLocationToSupabase, broadcastSosAlertToSupabase, syncNodeToSupabase } from '../supabase.js';
 
 const OFFLINE_QUEUE_KEY = 'gk_rider_offline_queue';
 const PARTNER_STORAGE_KEY = 'gk_delivery_partner';
@@ -102,11 +102,7 @@ export async function flushOfflineQueue(syncOrderCallback) {
         if (item.type === 'ORDER_STATUS_UPDATE' && syncOrderCallback) {
           await syncOrderCallback(item.orderId, item.status, item.extraData);
         } else if (item.type === 'SYNC_PARTNER') {
-          await fetch(`${FIREBASE_DB_URL}/delivery_partners/${item.partnerId}.json`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(item.data)
-          });
+          await syncNodeToSupabase(`delivery_partner_${item.partnerId}`, item.data);
         }
       } catch (err) {
         remaining.push(item);
@@ -119,48 +115,12 @@ export async function flushOfflineQueue(syncOrderCallback) {
   }
 }
 
-// Send Live Partner GPS Coordinates to Firebase RTDB
+// Send Live Partner GPS Coordinates to Supabase
 export async function syncPartnerLocationToFirebase(partnerId, coords) {
-  try {
-    if (!navigator.onLine) return;
-    const payload = {
-      lat: coords.latitude,
-      lng: coords.longitude,
-      accuracy: coords.accuracy,
-      updated_at: new Date().toISOString()
-    };
-    await fetch(`${FIREBASE_DB_URL}/delivery_partners/${partnerId}/location.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (e) {
-    // Silently continue
-  }
+  return await syncPartnerLocationToSupabase(partnerId, coords);
 }
 
-// Send SOS Alert to Firebase Realtime Database
+// Send SOS Alert to Supabase
 export async function broadcastSosAlert(partner, location) {
-  try {
-    const alertId = `SOS-${Date.now()}`;
-    const payload = {
-      id: alertId,
-      partner_id: partner.id,
-      partner_name: partner.name,
-      partner_phone: partner.phone,
-      vehicle: partner.vehicle,
-      location: location || { lat: 27.941887, lng: 77.843715 },
-      status: 'ACTIVE_EMERGENCY',
-      timestamp: new Date().toISOString()
-    };
-    await fetch(`${FIREBASE_DB_URL}/sos_alerts/${alertId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    return alertId;
-  } catch (e) {
-    console.warn('SOS sync warning:', e);
-    return null;
-  }
+  return await broadcastSosAlertToSupabase(partner, location);
 }

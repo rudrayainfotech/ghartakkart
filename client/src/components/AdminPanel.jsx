@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, FIREBASE_DB_URL, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS } from '../context/StoreContext.jsx';
-import { fetchNodeFromSupabase } from '../supabase.js';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS } from '../context/StoreContext.jsx';
+import { fetchNodeFromSupabase, syncNodeToSupabase } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
   isNotificationSupported,
@@ -1984,24 +1984,20 @@ Thank you for shopping with ${storeName}! 🙏`;
       });
     }
 
-    // 2. Fetch latest remote orders AND orders_inbox, merge with local orders so we never overwrite incoming orders
+    // 2. Fetch latest remote orders AND orders_inbox from Supabase, merge with local orders so we never overwrite incoming orders
     try {
-      const [res, inboxRes] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/orders_inbox.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
+      const [remoteList, inboxList] = await Promise.all([
+        fetchNodeFromSupabase('orders'),
+        fetchNodeFromSupabase('orders_inbox')
       ]);
 
       const combinedMap = new Map();
-      if (res && res.ok) {
-        const remoteData = await res.json();
-        const remoteList = normalizeFirebaseList(remoteData) || [];
+      if (Array.isArray(remoteList)) {
         for (const ro of remoteList) {
           if (ro && ro.id) combinedMap.set(ro.id, ro);
         }
       }
-      if (inboxRes && inboxRes.ok) {
-        const inboxData = await inboxRes.json();
-        const inboxList = normalizeFirebaseList(inboxData) || [];
+      if (Array.isArray(inboxList)) {
         for (const io of inboxList) {
           if (io && io.id) combinedMap.set(io.id, io);
         }
@@ -2019,19 +2015,6 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     await syncToFirebase('orders', updatedList);
-
-    // Direct slot update & clean processed order from orders_inbox
-    const updatedOrderObj = updatedList.find(o => o.id === orderId);
-    if (updatedOrderObj) {
-      fetch(`${FIREBASE_DB_URL}/orders/${orderId}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedOrderObj)
-      }).catch(() => {});
-    }
-    fetch(`${FIREBASE_DB_URL}/orders_inbox/${orderId}.json`, {
-      method: 'DELETE'
-    }).catch(() => {});
   };
 
   // Handle Update / Save Admin Remark on Order -> Syncs with Firebase RTDB
@@ -2072,9 +2055,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     setEditingRemarkOrderId(null);
 
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const remoteData = await res.json();
+      const remoteData = await fetchNodeFromSupabase('orders');
+      if (remoteData) {
         const remoteList = Array.isArray(remoteData)
           ? remoteData.filter(Boolean)
           : remoteData && typeof remoteData === 'object'
@@ -2215,9 +2197,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     setIsEditOrderVendorModalOpen(false);
 
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const remoteData = await res.json();
+      const remoteData = await fetchNodeFromSupabase('orders');
+      if (remoteData) {
         const remoteList = Array.isArray(remoteData)
           ? remoteData.filter(Boolean)
           : remoteData && typeof remoteData === 'object'
@@ -2392,9 +2373,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     setIsItemVendorModalOpen(false);
 
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const remoteData = await res.json();
+      const remoteData = await fetchNodeFromSupabase('orders');
+      if (remoteData) {
         const remoteList = Array.isArray(remoteData)
           ? remoteData.filter(Boolean)
           : remoteData && typeof remoteData === 'object'
@@ -2418,15 +2398,6 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     await syncToFirebase('orders', updatedList);
-
-    const updatedOrderObj = updatedList.find(o => o.id === orderId);
-    if (updatedOrderObj) {
-      fetch(`${FIREBASE_DB_URL}/orders/${orderId}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedOrderObj)
-      }).catch(() => {});
-    }
   };
 
   // =========================================================================
@@ -2624,9 +2595,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     setIsFullEditOrderModalOpen(false);
 
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-      if (res.ok) {
-        const remoteData = await res.json();
+      const remoteData = await fetchNodeFromSupabase('orders');
+      if (remoteData) {
         const remoteList = Array.isArray(remoteData)
           ? remoteData.filter(Boolean)
           : remoteData && typeof remoteData === 'object'
@@ -2650,15 +2620,6 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     await syncToFirebase('orders', updatedList);
-
-    const updatedOrderObj = updatedList.find(o => o.id === orderId);
-    if (updatedOrderObj) {
-      fetch(`${FIREBASE_DB_URL}/orders/${orderId}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedOrderObj)
-      }).catch(() => {});
-    }
 
     alert(`✅ Order #${orderId} successfully updated!`);
   };
@@ -3057,11 +3018,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     setNewStaffShift('Morning Shift (07:00 AM - 12:00 PM)');
 
     await syncToFirebase('staff', nextStaff);
-    fetch(`${FIREBASE_DB_URL}/delivery_partners/${riderId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newRider)
-    }).catch(() => {});
   };
 
   // Handle Add Shift Slot (Admin Only)
@@ -3116,11 +3072,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     setEditingRiderCredentials(null);
 
     await syncToFirebase('staff', nextStaff);
-    fetch(`${FIREBASE_DB_URL}/delivery_partners/${updated.id}.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch(() => {});
   };
 
   // Quick 1-Click ID Verification from Admin Panel
@@ -3134,11 +3085,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     setStaff(nextStaff);
     try { localStorage.setItem('gk_staff', JSON.stringify(nextStaff)); } catch {}
     await syncToFirebase('staff', nextStaff);
-    fetch(`${FIREBASE_DB_URL}/delivery_partners/${rider.id}.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(updated)
-    }).catch(() => {});
   };
 
   // Handle Open Create / Edit Offer

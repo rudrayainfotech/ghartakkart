@@ -8,11 +8,11 @@ import {
 
 import { translations } from './translations.js';
 import { 
-  FIREBASE_DB_URL,
   getStoredPartner, saveStoredPartner, getStoredCashLedger, 
   saveStoredCashLedger, queueOfflineAction, flushOfflineQueue, 
   syncPartnerLocationToFirebase 
 } from './storage.js';
+import { fetchNodeFromSupabase, updateNodeItemInSupabase } from '../supabase.js';
 import { playAcceptChime, playDeliveredChime } from './audio.js';
 
 import { OrderAcceptModal } from './components/OrderAcceptModal.jsx';
@@ -81,45 +81,26 @@ export default function DeliveryApp() {
   // Offline network status
   const [isNetworkOnline, setIsNetworkOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
-  // Fetch live orders & staff from Firebase RTDB in real-time
+  // Fetch live orders & staff from Supabase in real-time
   useEffect(() => {
     const fetchRemoteData = async () => {
       try {
-        const pKey = partner.phone || partner.id;
-        const [ordersRes, staffRes, partnerRemoteRes] = await Promise.all([
-          fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/staff.json?t=${Date.now()}`).catch(() => null),
-          pKey ? fetch(`${FIREBASE_DB_URL}/delivery_partners/${pKey}.json?t=${Date.now()}`).catch(() => null) : null
+        const [ordersData, staffData] = await Promise.all([
+          fetchNodeFromSupabase('orders'),
+          fetchNodeFromSupabase('staff')
         ]);
 
-        if (ordersRes && ordersRes.ok) {
-          const data = await ordersRes.json();
-          const list = Array.isArray(data) ? data : Object.values(data || {});
+        if (ordersData) {
+          const list = Array.isArray(ordersData) ? ordersData : Object.values(ordersData || {});
           if (list.length > 0) {
             setOrders(list);
             try { localStorage.setItem('gk_orders', JSON.stringify(list)); } catch {}
           }
         }
 
-        if (staffRes && staffRes.ok) {
-          const sData = await staffRes.json();
-          const sList = Array.isArray(sData) ? sData : Object.values(sData || {});
+        if (staffData) {
+          const sList = Array.isArray(staffData) ? staffData : Object.values(staffData || {});
           setStaff(sList);
-        }
-
-        if (partnerRemoteRes && partnerRemoteRes.ok) {
-          const pData = await partnerRemoteRes.json();
-          if (pData && pData.kyc_status) {
-            setPartner(prev => {
-              const merged = { ...prev, ...pData };
-              saveStoredPartner(merged);
-              return merged;
-            });
-            // If rejected, strictly force offline
-            if (pData.kyc_status === 'rejected') {
-              setIsOnline(false);
-            }
-          }
         }
       } catch (err) {}
     };
@@ -380,18 +361,14 @@ export default function DeliveryApp() {
       setActiveOrder(targetOrder);
     }
 
-    // Direct Remote Firebase RTDB sync
+    // Direct Remote Supabase sync
     if (navigator.onLine) {
       try {
-        await fetch(`${FIREBASE_DB_URL}/orders/${orderId}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            order_status: newStatus,
-            updated_at: nowIso,
-            assigned_staff_id: partner.id,
-            timeline: targetOrder?.timeline || []
-          })
+        await updateNodeItemInSupabase('orders', orderId, {
+          order_status: newStatus,
+          updated_at: nowIso,
+          assigned_staff_id: partner.id,
+          timeline: targetOrder?.timeline || []
         });
       } catch (err) {
         queueOfflineAction({

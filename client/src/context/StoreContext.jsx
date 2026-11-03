@@ -7,7 +7,7 @@ import { supabase, isSupabaseConfigured, syncNodeToSupabase, fetchNodeFromSupaba
 
 const StoreContext = createContext();
 
-export const FIREBASE_DB_URL = "https://vertexpsbyri-default-rtdb.asia-southeast1.firebasedatabase.app";
+export const FIREBASE_DB_URL = "";
 
 const DEFAULT_SETTINGS = {
   store_name: 'GhartakKart Khair Store',
@@ -520,19 +520,14 @@ export async function syncToFirebase(nodePath, data) {
       });
     }
 
-    // Dual-sync to Supabase database in parallel
-    syncNodeToSupabase(nodePath, payloadToSync).catch(() => {});
-
-    await fetch(`${FIREBASE_DB_URL}/${nodePath}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payloadToSync)
-    });
+    // Direct Supabase storage
+    await syncNodeToSupabase(nodePath, payloadToSync);
   } catch (err) {
     console.warn(`Database sync error (${nodePath}):`, err);
   }
 }
 
+export const syncToSupabase = syncToFirebase;
 export const syncToDatabase = syncToFirebase;
 
 export function StoreProvider({ children }) {
@@ -1131,62 +1126,39 @@ export function StoreProvider({ children }) {
     }
   };
 
-  // Fast (~80ms) lightweight poll of /orders.json, /orders_inbox.json, /settings.json, /offers.json & /milestone_gifts.json for 1.5s real-time sync
+  // Fast (~80ms) lightweight poll from Supabase store_kv
   const pollOrdersFast = async () => {
     if (isPollingOrdersRef.current) return;
     isPollingOrdersRef.current = true;
     try {
-      const [ordersRes, inboxRes, settingsRes, offersRes, milestonesRes, blockedRes] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/orders_inbox.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/settings.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/offers.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/milestone_gifts.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/blocked_customers.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
+      const [sbOrders, sbInbox, sbSettings, sbOffers, sbMilestones, sbBlocked] = await Promise.all([
+        fetchNodeFromSupabase('orders'),
+        fetchNodeFromSupabase('orders_inbox'),
+        fetchNodeFromSupabase('settings'),
+        fetchNodeFromSupabase('offers'),
+        fetchNodeFromSupabase('milestone_gifts'),
+        fetchNodeFromSupabase('blocked_customers')
       ]);
       const isRecentOrderWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2000);
       if (!isRecentOrderWrite) {
-        let remoteList = [];
-        if (ordersRes && ordersRes.ok) {
-          const raw = await ordersRes.json();
-          remoteList = normalizeFirebaseList(raw) || [];
+        let combinedOrders = [];
+        if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
+        if (Array.isArray(sbInbox)) {
+          const combinedMap = new Map();
+          combinedOrders.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
+          sbInbox.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
+          combinedOrders = Array.from(combinedMap.values());
         }
-        let inboxList = [];
-        if (inboxRes && inboxRes.ok) {
-          const rawInbox = await inboxRes.json();
-          inboxList = normalizeFirebaseList(rawInbox) || [];
-        }
-
-        const combinedMap = new Map();
-        remoteList.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-        inboxList.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-        const allRemote = Array.from(combinedMap.values());
-        if (allRemote.length > 0) {
-          await mergeAndSyncOrders(allRemote, true);
+        if (combinedOrders.length > 0) {
+          await mergeAndSyncOrders(combinedOrders, true);
         }
       }
-      if (settingsRes && settingsRes.ok) {
-        const settingsData = await settingsRes.json();
-        if (settingsData) {
-          setSettings(settingsData);
-          try { localStorage.setItem('gk_settings', JSON.stringify(settingsData)); } catch {}
-        }
+      if (sbSettings && typeof sbSettings === 'object') {
+        setSettings(prev => ({ ...prev, ...sbSettings }));
       }
-      if (offersRes && offersRes.ok) {
-        const rawOffers = await offersRes.json();
-        applyRemoteOffers(rawOffers);
-      }
-      if (milestonesRes && milestonesRes.ok) {
-        const rawMilestones = await milestonesRes.json();
-        applyRemoteMilestones(rawMilestones);
-      }
-      if (blockedRes && blockedRes.ok) {
-        const rawBlocked = await blockedRes.json();
-        if (rawBlocked && typeof rawBlocked === 'object') {
-          setBlockedCustomers(rawBlocked);
-          try { localStorage.setItem('gk_blocked_customers', JSON.stringify(rawBlocked)); } catch {}
-        }
-      }
+      if (sbOffers) applyRemoteOffers(sbOffers);
+      if (sbMilestones) applyRemoteMilestones(sbMilestones);
+      if (sbBlocked && typeof sbBlocked === 'object') setBlockedCustomers(sbBlocked);
     } catch {} finally {
       isPollingOrdersRef.current = false;
     }
@@ -1198,84 +1170,12 @@ export function StoreProvider({ children }) {
     try {
       if (!isBackgroundPoll && products.length === 0) setLoading(true);
 
-      // Step 1: Fetch core store nodes including compressed products catalog and orders_inbox in parallel
-      const [ordersRes, inboxRes, settingsRes, offersRes, milestonesRes, catsRes, prodsRes, blockedRes] = await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/orders_inbox.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/settings.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/offers.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/milestone_gifts.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/categories.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/products.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-        fetch(`${FIREBASE_DB_URL}/blocked_customers.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
-      ]);
-
-      if ((ordersRes && ordersRes.ok) || (inboxRes && inboxRes.ok)) {
-        let remoteList = [];
-        if (ordersRes && ordersRes.ok) {
-          const raw = await ordersRes.json();
-          remoteList = normalizeFirebaseList(raw) || [];
-        }
-        let inboxList = [];
-        if (inboxRes && inboxRes.ok) {
-          const rawInbox = await inboxRes.json();
-          inboxList = normalizeFirebaseList(rawInbox) || [];
-        }
-        const combinedMap = new Map();
-        remoteList.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-        inboxList.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-        const allOrders = Array.from(combinedMap.values());
-        if (allOrders.length > 0) {
-          await mergeAndSyncOrders(allOrders, isBackgroundPoll);
-        }
-      }
-      if (settingsRes && settingsRes.ok) {
-        const settingsData = await settingsRes.json();
-        if (settingsData) {
-          const mergedSettings = { ...DEFAULT_SETTINGS, ...settingsData };
-          setSettings(mergedSettings);
-          try { localStorage.setItem('gk_settings', JSON.stringify(mergedSettings)); } catch {}
-        }
-      }
-      if (offersRes && offersRes.ok) {
-        const rawOffers = await offersRes.json();
-        applyRemoteOffers(rawOffers);
-      }
-      if (milestonesRes && milestonesRes.ok) {
-        const rawMilestones = await milestonesRes.json();
-        applyRemoteMilestones(rawMilestones);
-      }
-      if (blockedRes && blockedRes.ok) {
-        const rawBlocked = await blockedRes.json();
-        if (rawBlocked && typeof rawBlocked === 'object') {
-          setBlockedCustomers(rawBlocked);
-          try { localStorage.setItem('gk_blocked_customers', JSON.stringify(rawBlocked)); } catch {}
-        }
-      }
-      if (catsRes && catsRes.ok) {
-        const catsData = normalizeFirebaseList(await catsRes.json());
-        if (catsData && catsData.length) {
-          setCategories(catsData);
-          try { localStorage.setItem('gk_categories', JSON.stringify(catsData)); } catch {}
-        }
-      }
-      if (prodsRes && prodsRes.ok) {
-        const isRecentProductWrite = window.__gkLastProductWrite && (Date.now() - window.__gkLastProductWrite < 10000);
-        if (!isRecentProductWrite) {
-          const rawProds = await prodsRes.json();
-          const fbProds = normalizeProductsList(rawProds);
-          if (fbProds && fbProds.length > 0) {
-            setProducts(fbProds);
-            try { localStorage.setItem('gk_products', JSON.stringify(fbProds)); } catch {}
-          }
-        }
-      }
-
-      // Supabase loader (ensures data is loaded and updated if Firebase is suspended or offline)
+      // Pure Supabase Data Fetch
       if (isSupabaseConfigured) {
         try {
-          const [sbOrders, sbSettings, sbProducts, sbCategories, sbOffers, sbMilestones, sbBlocked, sbWallets] = await Promise.all([
+          const [sbOrders, sbInbox, sbSettings, sbProducts, sbCategories, sbOffers, sbMilestones, sbBlocked, sbWallets] = await Promise.all([
             fetchNodeFromSupabase('orders'),
+            fetchNodeFromSupabase('orders_inbox'),
             fetchNodeFromSupabase('settings'),
             fetchNodeFromSupabase('products'),
             fetchNodeFromSupabase('categories'),
@@ -1285,24 +1185,37 @@ export function StoreProvider({ children }) {
             fetchNodeFromSupabase('wallets')
           ]);
 
-          if (sbOrders && Array.isArray(sbOrders) && sbOrders.length > 0) {
-            await mergeAndSyncOrders(sbOrders, isBackgroundPoll);
+          let combinedOrders = [];
+          if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
+          if (Array.isArray(sbInbox)) {
+            const orderMap = new Map();
+            combinedOrders.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
+            sbInbox.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
+            combinedOrders = Array.from(orderMap.values());
           }
+          if (combinedOrders.length > 0) {
+            await mergeAndSyncOrders(combinedOrders, isBackgroundPoll);
+          }
+
           if (sbSettings && typeof sbSettings === 'object') {
-            setSettings(prev => ({ ...prev, ...sbSettings }));
+            const mergedSettings = { ...DEFAULT_SETTINGS, ...sbSettings };
+            setSettings(mergedSettings);
+            try { localStorage.setItem('gk_settings', JSON.stringify(mergedSettings)); } catch {}
           }
           if (sbProducts && Array.isArray(sbProducts) && sbProducts.length > 0) {
             setProducts(sbProducts);
+            try { localStorage.setItem('gk_products', JSON.stringify(sbProducts)); } catch {}
           }
           if (sbCategories && Array.isArray(sbCategories) && sbCategories.length > 0) {
             setCategories(sbCategories);
+            try { localStorage.setItem('gk_categories', JSON.stringify(sbCategories)); } catch {}
           }
           if (sbOffers) applyRemoteOffers(sbOffers);
           if (sbMilestones) applyRemoteMilestones(sbMilestones);
           if (sbBlocked && typeof sbBlocked === 'object') setBlockedCustomers(sbBlocked);
           if (sbWallets && typeof sbWallets === 'object') setWallets(sbWallets);
         } catch (sbErr) {
-          console.warn('[Supabase Fallback Loader] error:', sbErr);
+          console.warn('[Supabase Core Loader] error:', sbErr);
         }
       }
 
@@ -1315,163 +1228,53 @@ export function StoreProvider({ children }) {
         window.location.pathname.includes('admin')
       );
 
-      // Step 2: Fetch staff and wallets (essential for customers). Only fetch accounting, vendor ledgers and audit logs for admins!
-      if (hasAdminAuth) {
-        const [staffRes, staffUsersRes, auditRes, vendorsRes, vendorLedgerRes, expensesRes, incomesRes, walletsRes] = await Promise.all([
-          fetch(`${FIREBASE_DB_URL}/staff.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/staff_users.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/audit_logs.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/vendors.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/vendor_ledgers.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/expenses.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/other_incomes.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/wallets.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
-        ]);
-
-        if (staffRes && staffRes.ok) {
-          const fbStaff = normalizeFirebaseList(await staffRes.json());
-          if (fbStaff) {
-            setStaff(fbStaff);
-            try { localStorage.setItem('gk_staff', JSON.stringify(fbStaff)); } catch {}
+      // Step 2: Fetch admin and staff nodes
+      if (hasAdminAuth && isSupabaseConfigured) {
+        try {
+          const [sbStaff, sbStaffUsers, sbAudit, sbVendors, sbLedger, sbExpenses, sbIncomes] = await Promise.all([
+            fetchNodeFromSupabase('staff'),
+            fetchNodeFromSupabase('staff_users'),
+            fetchNodeFromSupabase('audit_logs'),
+            fetchNodeFromSupabase('vendors'),
+            fetchNodeFromSupabase('vendor_ledgers'),
+            fetchNodeFromSupabase('expenses'),
+            fetchNodeFromSupabase('other_incomes')
+          ]);
+          if (sbStaff && Array.isArray(sbStaff) && sbStaff.length) {
+            setStaff(sbStaff);
+            try { localStorage.setItem('gk_staff', JSON.stringify(sbStaff)); } catch {}
           }
-        }
-        if (staffUsersRes && staffUsersRes.ok) {
-          const fbStaffUsers = normalizeFirebaseList(await staffUsersRes.json());
-          if (fbStaffUsers && fbStaffUsers.length) {
-            setStaffUsers(fbStaffUsers);
-            try { localStorage.setItem('gk_staff_users', JSON.stringify(fbStaffUsers)); } catch {}
+          if (sbStaffUsers && Array.isArray(sbStaffUsers) && sbStaffUsers.length) {
+            setStaffUsers(sbStaffUsers);
+            try { localStorage.setItem('gk_staff_users', JSON.stringify(sbStaffUsers)); } catch {}
           }
-        }
-        if (auditRes && auditRes.ok) {
-          const fbAuditLogs = normalizeFirebaseList(await auditRes.json());
-          if (fbAuditLogs) {
-            fbAuditLogs.sort((a, b) => new Date(b.timestamp || 0) - new Date(a.timestamp || 0));
-            setAuditLogs(fbAuditLogs);
-            try { localStorage.setItem('gk_audit_logs', JSON.stringify(fbAuditLogs)); } catch {}
+          if (sbAudit && Array.isArray(sbAudit) && sbAudit.length) {
+            setAuditLogs(sbAudit);
+            try { localStorage.setItem('gk_audit_logs', JSON.stringify(sbAudit)); } catch {}
           }
-        }
-        if (vendorsRes && vendorsRes.ok) {
-          const fbVendors = normalizeFirebaseList(await vendorsRes.json());
-          if (fbVendors && fbVendors.length) {
-            setVendors(fbVendors);
-            try { localStorage.setItem('gk_vendors', JSON.stringify(fbVendors)); } catch {}
+          if (sbVendors && Array.isArray(sbVendors) && sbVendors.length) {
+            setVendors(sbVendors);
+            try { localStorage.setItem('gk_vendors', JSON.stringify(sbVendors)); } catch {}
           }
-        }
-        if (vendorLedgerRes && vendorLedgerRes.ok) {
-          const rawLedger = await vendorLedgerRes.json();
-          const fbLedger = normalizeFirebaseList(rawLedger) || [];
-
-          let extraRecords = [];
-          try {
-            const recordsRes = await fetch(`${FIREBASE_DB_URL}/vendor_ledger_records.json?t=${Date.now()}`, { cache: 'no-store' });
-            if (recordsRes && recordsRes.ok) {
-              extraRecords = normalizeFirebaseList(await recordsRes.json()) || [];
-            }
-          } catch {}
-
-          const mergedMap = new Map();
-          fbLedger.forEach(e => { if (e && e.id) mergedMap.set(e.id, e); });
-          extraRecords.forEach(e => { if (e && e.id) mergedMap.set(e.id, e); });
-          const resolvedLedger = Array.from(mergedMap.values());
-          resolvedLedger.sort((a, b) => new Date(b.date || b.created_at || 0) - new Date(a.date || a.created_at || 0));
-
-          setVendorLedger(resolvedLedger);
-          isVendorLedgerLoaded.current = true;
-          try { localStorage.setItem('gk_vendor_ledger', JSON.stringify(resolvedLedger)); } catch {}
-        } else {
-          isVendorLedgerLoaded.current = true;
-        }
-        if (expensesRes && expensesRes.ok) {
-          const fbExpenses = normalizeFirebaseList(await expensesRes.json());
-          if (fbExpenses && fbExpenses.length) {
-            setExpenses(fbExpenses);
-            try { localStorage.setItem('gk_expenses', JSON.stringify(fbExpenses)); } catch {}
+          if (sbLedger && Array.isArray(sbLedger) && sbLedger.length) {
+            setVendorLedger(sbLedger);
+            isVendorLedgerLoaded.current = true;
+            try { localStorage.setItem('gk_vendor_ledger', JSON.stringify(sbLedger)); } catch {}
           }
-        }
-        if (incomesRes && incomesRes.ok) {
-          const fbIncomes = normalizeFirebaseList(await incomesRes.json());
-          if (fbIncomes && fbIncomes.length) {
-            setOtherIncomes(fbIncomes);
-            try { localStorage.setItem('gk_other_incomes', JSON.stringify(fbIncomes)); } catch {}
+          if (sbExpenses && Array.isArray(sbExpenses) && sbExpenses.length) {
+            setExpenses(sbExpenses);
+            try { localStorage.setItem('gk_expenses', JSON.stringify(sbExpenses)); } catch {}
           }
-        }
-        if (walletsRes && walletsRes.ok) {
-          const rawWallets = await walletsRes.json();
-          if (rawWallets && typeof rawWallets === 'object') {
-            setWallets(rawWallets);
-            try { localStorage.setItem('gk_customer_wallets', JSON.stringify(rawWallets)); } catch {}
+          if (sbIncomes && Array.isArray(sbIncomes) && sbIncomes.length) {
+            setOtherIncomes(sbIncomes);
+            try { localStorage.setItem('gk_other_incomes', JSON.stringify(sbIncomes)); } catch {}
           }
-        }
-
-        // Supabase Admin Nodes Fallback
-        if (isSupabaseConfigured) {
-          try {
-            const [sbStaff, sbStaffUsers, sbAudit, sbVendors, sbLedger, sbExpenses, sbIncomes] = await Promise.all([
-              fetchNodeFromSupabase('staff'),
-              fetchNodeFromSupabase('staff_users'),
-              fetchNodeFromSupabase('audit_logs'),
-              fetchNodeFromSupabase('vendors'),
-              fetchNodeFromSupabase('vendor_ledgers'),
-              fetchNodeFromSupabase('expenses'),
-              fetchNodeFromSupabase('other_incomes')
-            ]);
-            if (sbStaff && Array.isArray(sbStaff) && sbStaff.length) {
-              setStaff(sbStaff);
-              try { localStorage.setItem('gk_staff', JSON.stringify(sbStaff)); } catch {}
-            }
-            if (sbStaffUsers && Array.isArray(sbStaffUsers) && sbStaffUsers.length) {
-              setStaffUsers(sbStaffUsers);
-              try { localStorage.setItem('gk_staff_users', JSON.stringify(sbStaffUsers)); } catch {}
-            }
-            if (sbAudit && Array.isArray(sbAudit) && sbAudit.length) {
-              setAuditLogs(sbAudit);
-              try { localStorage.setItem('gk_audit_logs', JSON.stringify(sbAudit)); } catch {}
-            }
-            if (sbVendors && Array.isArray(sbVendors) && sbVendors.length) {
-              setVendors(sbVendors);
-              try { localStorage.setItem('gk_vendors', JSON.stringify(sbVendors)); } catch {}
-            }
-            if (sbLedger && Array.isArray(sbLedger) && sbLedger.length) {
-              setVendorLedger(sbLedger);
-              isVendorLedgerLoaded.current = true;
-              try { localStorage.setItem('gk_vendor_ledger', JSON.stringify(sbLedger)); } catch {}
-            }
-            if (sbExpenses && Array.isArray(sbExpenses) && sbExpenses.length) {
-              setExpenses(sbExpenses);
-              try { localStorage.setItem('gk_expenses', JSON.stringify(sbExpenses)); } catch {}
-            }
-            if (sbIncomes && Array.isArray(sbIncomes) && sbIncomes.length) {
-              setOtherIncomes(sbIncomes);
-              try { localStorage.setItem('gk_other_incomes', JSON.stringify(sbIncomes)); } catch {}
-            }
-          } catch (sbAdminErr) {
-            console.warn('[Supabase Admin Loader] warning:', sbAdminErr);
-          }
-        }
-      } else {
-        // Customer mode: Fast, lightweight parallel fetch for staff and wallets
-        const [staffRes, walletsRes] = await Promise.all([
-          fetch(`${FIREBASE_DB_URL}/staff.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null),
-          fetch(`${FIREBASE_DB_URL}/wallets.json?t=${Date.now()}`, { cache: 'no-store' }).catch(() => null)
-        ]);
-
-        if (staffRes && staffRes.ok) {
-          const fbStaff = normalizeFirebaseList(await staffRes.json());
-          if (fbStaff) {
-            setStaff(fbStaff);
-            try { localStorage.setItem('gk_staff', JSON.stringify(fbStaff)); } catch {}
-          }
-        }
-        if (walletsRes && walletsRes.ok) {
-          const rawWallets = await walletsRes.json();
-          if (rawWallets && typeof rawWallets === 'object') {
-            setWallets(rawWallets);
-            try { localStorage.setItem('gk_customer_wallets', JSON.stringify(rawWallets)); } catch {}
-          }
+        } catch (sbAdminErr) {
+          console.warn('[Supabase Admin Loader] warning:', sbAdminErr);
         }
       }
     } catch (err) {
-      console.warn('Firebase RTDB fetch warning:', err);
+      console.warn('Data fetch warning:', err);
     } finally {
       if (!isBackgroundPoll) setLoading(false);
       isFetchingCatalogRef.current = false;
@@ -1481,7 +1284,7 @@ export function StoreProvider({ children }) {
   useEffect(() => {
     fetchData(false);
 
-    // Supabase Realtime Subscription for zero-delay order status and catalog updates
+    // Supabase Realtime Subscription for zero-delay order status, offers and catalog updates
     let unsubSupabase = null;
     if (isSupabaseConfigured) {
       unsubSupabase = subscribeStoreKv((key, data) => {
@@ -1493,75 +1296,20 @@ export function StoreProvider({ children }) {
           setProducts(data);
         } else if (key === 'categories' && Array.isArray(data)) {
           setCategories(data);
+        } else if (key === 'offers') {
+          applyRemoteOffers(data);
+        } else if (key === 'milestone_gifts') {
+          applyRemoteMilestones(data);
+        } else if (key === 'staff' && Array.isArray(data)) {
+          setStaff(data);
+        } else if (key === 'staff_users' && Array.isArray(data)) {
+          setStaffUsers(data);
         } else if (key === 'wallets' && data) {
           setWallets(data);
         } else if (key === 'blocked_customers' && data) {
           setBlockedCustomers(data);
         }
       });
-    }
-
-    // 1. Instant Realtime SSE streaming from Firebase RTDB for zero-delay order status, offers & free gift milestone changes
-    let ordersEventSource = null;
-    let ordersInboxEventSource = null;
-    let offersEventSource = null;
-    let milestonesEventSource = null;
-    try {
-      ordersEventSource = new EventSource(`${FIREBASE_DB_URL}/orders.json`);
-      const handleSseOrdersEvent = async (e) => {
-        try {
-          const isRecentLocalWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 1500);
-          if (isRecentLocalWrite) return;
-
-          const payload = JSON.parse(e.data);
-          if (payload && payload.path === '/' && payload.data !== undefined && payload.data !== null) {
-            await mergeAndSyncOrders(payload.data, true);
-            return;
-          }
-          await pollOrdersFast();
-        } catch {}
-      };
-      ordersEventSource.addEventListener('put', handleSseOrdersEvent);
-      ordersEventSource.addEventListener('patch', handleSseOrdersEvent);
-
-      try {
-        ordersInboxEventSource = new EventSource(`${FIREBASE_DB_URL}/orders_inbox.json`);
-        const handleSseInboxEvent = async () => {
-          await pollOrdersFast();
-        };
-        ordersInboxEventSource.addEventListener('put', handleSseInboxEvent);
-        ordersInboxEventSource.addEventListener('patch', handleSseInboxEvent);
-      } catch {}
-
-      offersEventSource = new EventSource(`${FIREBASE_DB_URL}/offers.json`);
-      const handleSseOffersEvent = async (e) => {
-        try {
-          const payload = JSON.parse(e.data);
-          if (payload && payload.path === '/') {
-            applyRemoteOffers(payload.data);
-            return;
-          }
-          await pollOrdersFast();
-        } catch {}
-      };
-      offersEventSource.addEventListener('put', handleSseOffersEvent);
-      offersEventSource.addEventListener('patch', handleSseOffersEvent);
-
-      milestonesEventSource = new EventSource(`${FIREBASE_DB_URL}/milestone_gifts.json`);
-      const handleSseMilestonesEvent = async (e) => {
-        try {
-          const payload = JSON.parse(e.data);
-          if (payload && payload.path === '/') {
-            applyRemoteMilestones(payload.data);
-            return;
-          }
-          await pollOrdersFast();
-        } catch {}
-      };
-      milestonesEventSource.addEventListener('put', handleSseMilestonesEvent);
-      milestonesEventSource.addEventListener('patch', handleSseMilestonesEvent);
-    } catch (err) {
-      console.warn('SSE not supported or failed:', err);
     }
 
     // 2. Cross-tab storage listener (0ms instant sync when Admin & Customer are on the same browser)
@@ -1640,10 +1388,6 @@ export function StoreProvider({ children }) {
       window.removeEventListener('visibilitychange', handleVisibilitySync);
       window.removeEventListener('focus', handleFocusSync);
       window.removeEventListener('pageshow', handleVisibilitySync);
-      if (ordersEventSource) ordersEventSource.close();
-      if (ordersInboxEventSource) ordersInboxEventSource.close();
-      if (offersEventSource) offersEventSource.close();
-      if (milestonesEventSource) milestonesEventSource.close();
       if (unsubSupabase) unsubSupabase();
     };
   }, [adminSoundEnabled]);
@@ -2147,16 +1891,9 @@ export function StoreProvider({ children }) {
     setAuditLogs(prev => {
       const updated = [newLog, ...(prev || [])];
       try { localStorage.setItem('gk_audit_logs', JSON.stringify(updated.slice(0, 500))); } catch {}
+      syncNodeToSupabase('audit_logs', updated.slice(0, 500)).catch(() => {});
       return updated;
     });
-
-    try {
-      fetch(`${FIREBASE_DB_URL}/audit_logs/${newLog.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newLog)
-      }).catch(() => {});
-    } catch {}
   };
 
   const adjustCustomerWallet = async (phone, amount, { type = 'credit', reason = '', orderId = '', by = 'Admin' } = {}) => {
@@ -2208,17 +1945,7 @@ export function StoreProvider({ children }) {
 
     setWallets(nextWallets);
     try { localStorage.setItem('gk_customer_wallets', JSON.stringify(nextWallets)); } catch {}
-
-    // Save to Firebase RTDB
-    try {
-      fetch(`${FIREBASE_DB_URL}/wallets/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedWallet)
-      }).catch(() => {});
-    } catch (err) {
-      console.warn('Wallet Firebase RTDB sync failed:', err);
-    }
+    syncNodeToSupabase('wallets', nextWallets).catch(() => {});
 
     // Sync to customerUser state if current session matches phone
     const currCustPhone = String(customerUser?.phone || '').replace(/\D/g, '').slice(-10);
@@ -2277,21 +2004,7 @@ export function StoreProvider({ children }) {
     const nextOrders = orders.map(o => o.id === orderId ? updatedOrder : o);
     setOrders(nextOrders);
     try { localStorage.setItem('gk_orders', JSON.stringify(nextOrders)); } catch {}
-
-    // Save updated scratch_card to Firebase RTDB
-    try {
-      fetch(`${FIREBASE_DB_URL}/orders/${orderId}/scratch_card.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedCard)
-      }).catch(() => {});
-
-      fetch(`${FIREBASE_DB_URL}/orders_inbox/${orderId}/scratch_card.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedCard)
-      }).catch(() => {});
-    } catch {}
+    syncNodeToSupabase('orders', nextOrders).catch(() => {});
 
     return updatedCard;
   };
@@ -2341,18 +2054,10 @@ export function StoreProvider({ children }) {
         note: 'Order was cancelled; cashback revoked'
       };
 
-      try {
-        fetch(`${FIREBASE_DB_URL}/orders/${targetOrder.id}/scratch_card.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cancelledCard)
-        }).catch(() => {});
-        fetch(`${FIREBASE_DB_URL}/orders_inbox/${targetOrder.id}/scratch_card.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(cancelledCard)
-        }).catch(() => {});
-      } catch {}
+      const updatedOrders = orders.map(o => o.id === targetOrder.id ? { ...o, scratch_card: cancelledCard } : o);
+      setOrders(updatedOrders);
+      try { localStorage.setItem('gk_orders', JSON.stringify(updatedOrders)); } catch {}
+      syncNodeToSupabase('orders', updatedOrders).catch(() => {});
     }
 
     return { revoked: wasCredited, amount: cashbackAmount };
@@ -2379,17 +2084,7 @@ export function StoreProvider({ children }) {
 
     setBlockedCustomers(nextBlocked);
     try { localStorage.setItem('gk_blocked_customers', JSON.stringify(nextBlocked)); } catch {}
-
-    // Save to Firebase RTDB
-    try {
-      await fetch(`${FIREBASE_DB_URL}/blocked_customers/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(blockEntry)
-      });
-    } catch (err) {
-      console.warn('Firebase RTDB block customer error:', err);
-    }
+    syncNodeToSupabase('blocked_customers', nextBlocked).catch(() => {});
 
     addAuditLog({
       action: 'Block Customer',
@@ -2410,15 +2105,7 @@ export function StoreProvider({ children }) {
 
     setBlockedCustomers(nextBlocked);
     try { localStorage.setItem('gk_blocked_customers', JSON.stringify(nextBlocked)); } catch {}
-
-    // Delete from Firebase RTDB
-    try {
-      await fetch(`${FIREBASE_DB_URL}/blocked_customers/${cleanPhone}.json`, {
-        method: 'DELETE'
-      });
-    } catch (err) {
-      console.warn('Firebase RTDB unblock customer error:', err);
-    }
+    syncNodeToSupabase('blocked_customers', nextBlocked).catch(() => {});
 
     addAuditLog({
       action: 'Unblock Customer',
@@ -2806,20 +2493,8 @@ export function StoreProvider({ children }) {
       return updatedList;
     });
 
-    // 1. Save full updated ledger array to Firebase
+    // Save full updated ledger array to Supabase
     await syncToFirebase('vendor_ledgers', updatedList);
-
-    // 2. ALSO save to persistent individual record endpoint so no race condition or overwrite can EVER wipe it!
-    try {
-      await fetch(`${FIREBASE_DB_URL}/vendor_ledger_records/${newEntry.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newEntry)
-      });
-    } catch (e) {
-      console.warn('vendor_ledger_records sync error:', e);
-    }
-
     return newEntry;
   };
 
@@ -2832,11 +2507,6 @@ export function StoreProvider({ children }) {
       return updatedList;
     });
     await syncToFirebase('vendor_ledgers', updatedList);
-    try {
-      await fetch(`${FIREBASE_DB_URL}/vendor_ledger_records/${entryId}.json`, {
-        method: 'DELETE'
-      });
-    } catch {}
   };
 
   const resetAllVendorLedgers = async () => {
@@ -2846,11 +2516,6 @@ export function StoreProvider({ children }) {
       localStorage.setItem('gk_vendor_ledger_v2_reset', 'true');
     } catch {}
     await syncToFirebase('vendor_ledgers', []);
-    try {
-      await fetch(`${FIREBASE_DB_URL}/vendor_ledger_records.json`, {
-        method: 'DELETE'
-      });
-    } catch {}
     if (vendors && vendors.length > 0) {
       const zeroedVendors = vendors.map(v => ({ ...v, opening_balance: 0 }));
       setVendors(zeroedVendors);
