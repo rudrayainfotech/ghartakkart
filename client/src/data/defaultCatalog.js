@@ -1,0 +1,424 @@
+// Default Store Catalog fallback for static hosting, mobile clients, and offline resilience
+export const DEFAULT_SETTINGS = {
+  store_name: "GhartakKart Khair Store",
+  store_tagline: "Fresh to Home, Fast to You.",
+  store_lat: 27.9463,
+  store_lng: 77.8398,
+  store_address: "Somna Road, Main Market, Khair, Aligarh, Uttar Pradesh - 202138",
+  max_radius_km: 10,
+  fee_slabs: [
+    { min_km: 0, max_km: 3, fee: 20, min_order: 150, free_above: 499 },
+    { min_km: 3, max_km: 6, fee: 40, min_order: 250, free_above: 799 },
+    { min_km: 6, max_km: 10, fee: 60, min_order: 350, free_above: 1199 }
+  ],
+  delivery_hours: {
+    open: "07:00",
+    close: "23:00",
+    is_open: true,
+    closed_message: "Store is currently closed for deliveries. Operating hours are 07:00 AM to 11:00 PM.",
+    days_open: "All 7 Days (Mon - Sun)"
+  },
+  store_logo: "/logo.jpg",
+  fssai_license: "10824005000123",
+  gstin: "09AAACG1234F1Z5",
+  support_phone: "+91 9058564391",
+  support_email: "support@ghartakkart.com",
+  receipt_footer_msg: "*** THANK YOU FOR SHOPPING LOCAL ***",
+  upi_id: "9058564391@ptsbi",
+  upi_merchant_name: "GhartakKart Khair Store"
+};
+
+export const DEFAULT_CATEGORIES = [
+  {
+    id: "grocery",
+    name: "Grocery & Staples",
+    slug: "grocery",
+    image: "https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=500&q=80",
+    subcategories: ["Staples & Atta", "Dairy & Eggs", "Snacks & Munchies", "Beverages", "Packaged Foods"],
+    sort_order: 1,
+    active: true,
+    max_radius_km: null,
+    available_hours: null
+  },
+  {
+    id: "fast-food",
+    name: "Fast Food & Hot Bites",
+    slug: "fast-food",
+    image: "https://images.unsplash.com/photo-1561758033-d89a9ad46330?auto=format&fit=crop&w=500&q=80",
+    subcategories: ["Burgers", "Pizza", "Rolls & Wraps", "Noodles & Rice", "Sides & Drinks"],
+    sort_order: 2,
+    active: true,
+    max_radius_km: 5,
+    available_hours: { open: "11:00", close: "23:00" }
+  },
+  {
+    id: "vegetables",
+    name: "Fresh Vegetables",
+    slug: "vegetables",
+    image: "https://images.unsplash.com/photo-1597362925123-77861d3fbac7?auto=format&fit=crop&w=500&q=80",
+    subcategories: ["Leafy Greens", "Root Vegetables", "Daily Cooking", "Exotic & Organic"],
+    sort_order: 3,
+    active: true,
+    max_radius_km: null,
+    available_hours: null
+  },
+  {
+    id: "fruits",
+    name: "Fresh Fruits",
+    slug: "fruits",
+    image: "https://images.unsplash.com/photo-1619566636858-adf3ef46400b?auto=format&fit=crop&w=500&q=80",
+    subcategories: ["Seasonal Favorites", "Daily Fresh", "Exotic & Berries", "Dry Fruits"],
+    sort_order: 4,
+    active: true,
+    max_radius_km: null,
+    available_hours: null
+  },
+  {
+    id: "personal-care",
+    name: "Personal Care & Hygiene",
+    slug: "personal-care",
+    image: "https://images.unsplash.com/photo-1556228720-195a672e8a03?auto=format&fit=crop&w=500&q=80",
+    subcategories: ["Hair Care", "Skin Care", "Oral Hygiene", "Bath & Body"],
+    sort_order: 5,
+    active: true,
+    max_radius_km: null,
+    available_hours: null
+  }
+];
+
+export const DEFAULT_PRODUCTS = [
+  // Grocery & Staples
+  {
+    id: "gk-atta-10kg",
+    name: "Aashirvaad Shudh Chakki Atta (100% Whole Wheat)",
+    category_id: "grocery",
+    subcategory: "Staples & Atta",
+    brand: "Aashirvaad",
+    unit: "10 kg",
+    price: 435,
+    mrp: 485,
+    stock: 50,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Superior MP whole wheat grains ground to perfection for soft, fluffy rotis.",
+    image: "https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-mustard-oil-1l",
+    name: "Fortune Kachi Ghani Pure Mustard Oil",
+    category_id: "grocery",
+    subcategory: "Staples & Atta",
+    brand: "Fortune",
+    unit: "1 L Pouch",
+    price: 145,
+    mrp: 170,
+    stock: 65,
+    veg_flag: true,
+    gst_rate: 5,
+    fssai: "10824005000123",
+    description: "Traditionally cold pressed pungent sarson tel rich in natural antioxidants.",
+    image: "https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-amul-milk-500ml",
+    name: "Amul Taaza Homogenised Toned Milk",
+    category_id: "grocery",
+    subcategory: "Dairy & Eggs",
+    brand: "Amul",
+    unit: "500 ml Pouch",
+    price: 27,
+    mrp: 27,
+    stock: 100,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Fresh and nutritious pasteurized toned milk from Amul.",
+    image: "https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1550583724-b2692b85b150?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-tata-tea-500g",
+    name: "Tata Tea Premium (Desh Ki Chai)",
+    category_id: "grocery",
+    subcategory: "Beverages",
+    brand: "Tata Tea",
+    unit: "500 g",
+    price: 260,
+    mrp: 310,
+    stock: 45,
+    veg_flag: true,
+    gst_rate: 5,
+    fssai: "10824005000123",
+    description: "Blend of large tea grains for aroma and fine granules for strong kadak taste.",
+    image: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1576092768241-dec231879fc3?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-maggi-4pk",
+    name: "Maggi 2-Minute Masala Instant Noodles",
+    category_id: "grocery",
+    subcategory: "Packaged Foods",
+    brand: "Nestle Maggi",
+    unit: "280 g (Pack of 4)",
+    price: 54,
+    mrp: 60,
+    stock: 80,
+    veg_flag: true,
+    gst_rate: 12,
+    fssai: "10824005000123",
+    description: "Classic favorite masala tastemaker noodles prepared in 2 quick minutes.",
+    image: "https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1612927601601-6638404737ce?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+
+  // Fresh Vegetables
+  {
+    id: "gk-potatoes-1kg",
+    name: "Fresh Hybrid Potatoes (Aloo)",
+    category_id: "vegetables",
+    subcategory: "Root Vegetables",
+    brand: "Khair Mandi Fresh",
+    unit: "1 kg",
+    price: 28,
+    mrp: 35,
+    stock: 120,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Locally harvested, clean firm potatoes ideal for curries, aloo parathas, and frying.",
+    image: "https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1518977676601-b53f82aba655?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-onion-1kg",
+    name: "Nashik Red Onions (Pyaaz)",
+    category_id: "vegetables",
+    subcategory: "Root Vegetables",
+    brand: "Khair Mandi Fresh",
+    unit: "1 kg",
+    price: 36,
+    mrp: 45,
+    stock: 90,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Crisp, pungent red onions sorted fresh daily for salads and rich curries.",
+    image: "https://images.unsplash.com/photo-1508747703725-719777637510?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1508747703725-719777637510?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-tomato-1kg",
+    name: "Fresh Country Hybrid Tomatoes (Tamatar)",
+    category_id: "vegetables",
+    subcategory: "Daily Cooking",
+    brand: "Khair Mandi Fresh",
+    unit: "1 kg",
+    price: 32,
+    mrp: 40,
+    stock: 75,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Plump, juicy ripe red tomatoes handpicked straight from local farms.",
+    image: "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-coriander-chilli",
+    name: "Fresh Green Chillies & Coriander Combo (Dhaniya Mirchi)",
+    category_id: "vegetables",
+    subcategory: "Leafy Greens",
+    brand: "Khair Mandi Fresh",
+    unit: "100g Mirchi + 100g Dhaniya",
+    price: 20,
+    mrp: 25,
+    stock: 60,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Aromatic desi green coriander bundle with spicy Indian green chillies.",
+    image: "https://images.unsplash.com/photo-1588879462740-420a3203f738?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1588879462740-420a3203f738?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+
+  // Fresh Fruits
+  {
+    id: "gk-banana-robusta",
+    name: "Fresh Robusta Bananas (Kela)",
+    category_id: "fruits",
+    subcategory: "Daily Fresh",
+    brand: "Fresh Farm",
+    unit: "1 Dozen (12 pcs)",
+    price: 55,
+    mrp: 70,
+    stock: 50,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Naturally ripened, sweet golden Robusta bananas rich in potassium and energy.",
+    image: "https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-apple-shimla-1kg",
+    name: "Crisp Royal Delicious Shimla Apples (Seb)",
+    category_id: "fruits",
+    subcategory: "Daily Fresh",
+    brand: "Shimla Orchards",
+    unit: "1 kg (approx 4-5 pcs)",
+    price: 135,
+    mrp: 160,
+    stock: 35,
+    veg_flag: true,
+    gst_rate: 0,
+    fssai: "10824005000123",
+    description: "Sweet, crunchy and juicy Shimla apples rich in fiber and antioxidants.",
+    image: "https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+
+  // Fast Food & Hot Bites (Max 5km radius)
+  {
+    id: "gk-crispy-veg-burger",
+    name: "Crispy Maharaja Veggie Burger",
+    category_id: "fast-food",
+    subcategory: "Burgers",
+    brand: "Ghartak Kitchen",
+    unit: "1 pc",
+    price: 79,
+    mrp: 99,
+    stock: 40,
+    veg_flag: true,
+    prep_time_mins: 15,
+    gst_rate: 5,
+    fssai: "10824005000123",
+    description: "Golden crispy aloo patty layered with tomato, onion, lettuce and zesty chipotle sauce.",
+    image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1568901346375-23c9450c58cd?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-paneer-tikka-pizza",
+    name: "Hot Paneer Tikka Cheesy Pizza (7 Inch)",
+    category_id: "fast-food",
+    subcategory: "Pizza",
+    brand: "Ghartak Kitchen",
+    unit: "1 pc (7 inch Regular)",
+    price: 169,
+    mrp: 219,
+    stock: 25,
+    veg_flag: true,
+    prep_time_mins: 20,
+    gst_rate: 5,
+    fssai: "10824005000123",
+    description: "Freshly baked pizza loaded with spiced paneer tikka cubes, capsicum, red paprika and 100% mozzarella cheese.",
+    image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1513104890138-7c749659a591?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+  {
+    id: "gk-french-fries-peri",
+    name: "Peri-Peri Crispy French Fries",
+    category_id: "fast-food",
+    subcategory: "Sides & Drinks",
+    brand: "Ghartak Kitchen",
+    unit: "1 Large Box (150g)",
+    price: 69,
+    mrp: 89,
+    stock: 35,
+    veg_flag: true,
+    prep_time_mins: 10,
+    gst_rate: 5,
+    fssai: "10824005000123",
+    description: "Sizzling golden potato fries tossed in tangy African peri-peri spices.",
+    image: "https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1576107232684-1279f3908594?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  },
+
+  // Personal Care & Hygiene
+  {
+    id: "gk-dettol-soap-combo",
+    name: "Dettol Original Germ Protection Bathing Soap",
+    category_id: "personal-care",
+    subcategory: "Bath & Body",
+    brand: "Dettol",
+    unit: "Pack of 3 (375g)",
+    price: 110,
+    mrp: 125,
+    stock: 55,
+    veg_flag: true,
+    gst_rate: 18,
+    fssai: "10824005000123",
+    description: "Trusted 99.9% germ protection soap bar for healthy everyday personal hygiene.",
+    image: "https://images.unsplash.com/photo-1607006314187-548c772c383f?auto=format&fit=crop&w=600&q=80",
+    images: ["https://images.unsplash.com/photo-1607006314187-548c772c383f?auto=format&fit=crop&w=600&q=80"],
+    active: true
+  }
+];
+
+export const DEFAULT_STAFF = [
+  {
+    id: "staff-1",
+    name: "Ramesh Sharma",
+    phone: "9811122334",
+    vehicle: "Honda Activa (UP-81-8921)",
+    active: true,
+    assigned_count: 2
+  },
+  {
+    id: "staff-2",
+    name: "Amit Verma",
+    phone: "9822233445",
+    vehicle: "Bajaj Pulsar (UP-81-4512)",
+    active: true,
+    assigned_count: 1
+  },
+  {
+    id: "staff-3",
+    name: "Vikram Negi",
+    phone: "9833344556",
+    vehicle: "Hero Electric (UP-81-1092)",
+    active: true,
+    assigned_count: 0
+  }
+];
+
+export const DEFAULT_COUPONS = [
+  {
+    code: "GHARTAK50",
+    discount_type: "flat",
+    discount_value: 50,
+    min_order: 299,
+    description: "Flat ₹50 OFF on orders above ₹299"
+  },
+  {
+    code: "FREEDEL",
+    discount_type: "free_delivery",
+    discount_value: 0,
+    min_order: 199,
+    description: "Free Delivery on orders above ₹199"
+  },
+  {
+    code: "FESTIVE20",
+    discount_type: "percent",
+    discount_value: 20,
+    max_discount: 100,
+    min_order: 499,
+    description: "20% OFF up to ₹100 on orders above ₹499"
+  }
+];

@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/logo.jpg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#059669" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="GhartakKart" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>GhartakKart - Fresh to Home, Fast to You | Hyperlocal Delivery</title>
+    <!-- Leaflet CSS for interactive map -->
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+      crossorigin=""
+    />
+    <link rel="preconnect" href="https://vertexpsbyri-default-rtdb.asia-southeast1.firebasedatabase.app" crossorigin>
+    <link rel="dns-prefetch" href="https://vertexpsbyri-default-rtdb.asia-southeast1.firebasedatabase.app">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body class="bg-gray-50 text-gray-900 font-['Plus_Jakarta_Sans',sans-serif] antialiased selection:bg-brand-500 selection:text-white">
+    <div id="root"></div>
+    <!-- Razorpay Standard Checkout SDK (deferred for instant first contentful paint) -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js" defer></script>
+    <!-- MSG91 Official OTP Provider Web SDK -->
+    <script type="text/javascript">
+      var configuration = {
+        widgetId: "366a786e7935393635333037",
+        tokenAuth: "584348T9VOGj656adcc051P1",
+        identifier: "",
+        exposeMethods: true,
+        success: (data) => {
+          console.log('success response', data);
+          if (typeof window.__handleMsg91Success === 'function') {
+            window.__handleMsg91Success(data);
+          }
+        },
+        failure: (error) => {
+          console.log('failure reason', error);
+          if (typeof window.__handleMsg91Failure === 'function') {
+            window.__handleMsg91Failure(error);
+          }
+        }
+      };
+    </script>
+    <script type="text/javascript">
+      (function loadOtpScript(urls) {
+        let i = 0;
+        function attempt() {
+          const s = document.createElement('script');
+          s.src = urls[i];
+          s.async = true;
+          s.onload = () => {
+            if (typeof window.initSendOTP === 'function') {
+              window.initSendOTP(configuration);
+            }
+          };
+          s.onerror = () => {
+            i++;
+            if (i < urls.length) {
+              attempt();
+            }
+          };
+          document.head.appendChild(s);
+        }
+        attempt();
+      })([
+        'https://verify.msg91.com/otp-provider.js',
+        'https://verify.phone91.com/otp-provider.js'
+      ]);
+    </script>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>

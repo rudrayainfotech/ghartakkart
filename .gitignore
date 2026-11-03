@@ -1,0 +1,13 @@
+node_modules/
+client/node_modules/
+dist/
+client/dist/
+dist-admin/
+client/dist-admin/
+.firebase/
+client/.firebase/
+.env
+.env.*
+!.env.example
+*.log
+npm

@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "vertexpsbyri"
+  },
+  "targets": {
+    "vertexpsbyri": {
+      "hosting": {
+        "customer": [
+          "vertexpsbyri"
+        ],
+        "admin": [
+          "ghartakkartadmin"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}
