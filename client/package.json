@@ -7,7 +7,7 @@
     "dev": "vite",
     "dev:admin": "vite --open admin.html",
     "dev:delivery": "vite --open delivery.html",
-    "build": "vite build && vite build --config vite.config.admin.js",
+    "build": "vite build && vite build --config vite.config.admin.js && node copy-admin.js",
     "build:customer": "vite build",
     "build:admin": "vite build --config vite.config.admin.js",
     "preview": "vite preview"
