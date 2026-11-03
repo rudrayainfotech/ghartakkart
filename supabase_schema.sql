@@ -6,6 +6,13 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- 0. Universal Key-Value Store (For instant seamless compatibility with all app data)
+CREATE TABLE IF NOT EXISTS store_kv (
+  key TEXT PRIMARY KEY,
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
 -- 1. Store Settings (KeyValue or Single Row)
 CREATE TABLE IF NOT EXISTS store_settings (
   id TEXT PRIMARY KEY DEFAULT 'current',
@@ -114,6 +121,7 @@ CREATE TABLE IF NOT EXISTS delivery_staff (
 );
 
 -- Enable Row Level Security (RLS) but allow public read/write for client application
+ALTER TABLE store_kv ENABLE ROW LEVEL SECURITY;
 ALTER TABLE store_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE products ENABLE ROW LEVEL SECURITY;
@@ -125,6 +133,7 @@ ALTER TABLE milestone_gifts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE delivery_staff ENABLE ROW LEVEL SECURITY;
 
 -- Public Access Policies (anon key access)
+CREATE POLICY "Public full access store_kv" ON store_kv FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public full access store_settings" ON store_settings FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public full access categories" ON categories FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Public full access products" ON products FOR ALL USING (true) WITH CHECK (true);
@@ -136,6 +145,7 @@ CREATE POLICY "Public full access milestone_gifts" ON milestone_gifts FOR ALL US
 CREATE POLICY "Public full access delivery_staff" ON delivery_staff FOR ALL USING (true) WITH CHECK (true);
 
 -- Enable Realtime for live order tracking
+ALTER PUBLICATION supabase_realtime ADD TABLE store_kv;
 ALTER PUBLICATION supabase_realtime ADD TABLE orders;
 ALTER PUBLICATION supabase_realtime ADD TABLE customer_wallets;
 ALTER PUBLICATION supabase_realtime ADD TABLE store_settings;

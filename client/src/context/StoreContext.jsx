@@ -3,6 +3,7 @@ import { calculateHaversineDistance, getStoreOperatingStatus } from '../utils/ha
 import { playChime } from '../utils/sound.js';
 import { sendOrderNotification } from '../utils/notifications.js';
 import { UNIFIED_DEFAULT_PRODUCTS } from '../data/unifiedProducts.js';
+import { supabase, isSupabaseConfigured, syncNodeToSupabase, fetchNodeFromSupabase, subscribeStoreKv } from '../supabase.js';
 
 const StoreContext = createContext();
 
@@ -518,15 +519,21 @@ export async function syncToFirebase(nodePath, data) {
         return copy;
       });
     }
+
+    // Dual-sync to Supabase database in parallel
+    syncNodeToSupabase(nodePath, payloadToSync).catch(() => {});
+
     await fetch(`${FIREBASE_DB_URL}/${nodePath}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payloadToSync)
     });
   } catch (err) {
-    console.warn(`Firebase sync error (${nodePath}):`, err);
+    console.warn(`Database sync error (${nodePath}):`, err);
   }
 }
+
+export const syncToDatabase = syncToFirebase;
 
 export function StoreProvider({ children }) {
   const [settings, setSettings] = useState(() => {
@@ -1264,6 +1271,41 @@ export function StoreProvider({ children }) {
         }
       }
 
+      // Supabase loader (ensures data is loaded and updated if Firebase is suspended or offline)
+      if (isSupabaseConfigured) {
+        try {
+          const [sbOrders, sbSettings, sbProducts, sbCategories, sbOffers, sbMilestones, sbBlocked, sbWallets] = await Promise.all([
+            fetchNodeFromSupabase('orders'),
+            fetchNodeFromSupabase('settings'),
+            fetchNodeFromSupabase('products'),
+            fetchNodeFromSupabase('categories'),
+            fetchNodeFromSupabase('offers'),
+            fetchNodeFromSupabase('milestone_gifts'),
+            fetchNodeFromSupabase('blocked_customers'),
+            fetchNodeFromSupabase('wallets')
+          ]);
+
+          if (sbOrders && Array.isArray(sbOrders) && sbOrders.length > 0) {
+            await mergeAndSyncOrders(sbOrders, isBackgroundPoll);
+          }
+          if (sbSettings && typeof sbSettings === 'object') {
+            setSettings(prev => ({ ...prev, ...sbSettings }));
+          }
+          if (sbProducts && Array.isArray(sbProducts) && sbProducts.length > 0) {
+            setProducts(sbProducts);
+          }
+          if (sbCategories && Array.isArray(sbCategories) && sbCategories.length > 0) {
+            setCategories(sbCategories);
+          }
+          if (sbOffers) applyRemoteOffers(sbOffers);
+          if (sbMilestones) applyRemoteMilestones(sbMilestones);
+          if (sbBlocked && typeof sbBlocked === 'object') setBlockedCustomers(sbBlocked);
+          if (sbWallets && typeof sbWallets === 'object') setWallets(sbWallets);
+        } catch (sbErr) {
+          console.warn('[Supabase Fallback Loader] error:', sbErr);
+        }
+      }
+
       if (!isBackgroundPoll) setLoading(false);
 
       // Fast check if current session is an admin or visiting the admin terminal
@@ -1392,6 +1434,26 @@ export function StoreProvider({ children }) {
 
   useEffect(() => {
     fetchData(false);
+
+    // Supabase Realtime Subscription for zero-delay order status and catalog updates
+    let unsubSupabase = null;
+    if (isSupabaseConfigured) {
+      unsubSupabase = subscribeStoreKv((key, data) => {
+        if (key === 'orders' && Array.isArray(data)) {
+          mergeAndSyncOrders(data, true);
+        } else if (key === 'settings' && data) {
+          setSettings(prev => ({ ...prev, ...data }));
+        } else if (key === 'products' && Array.isArray(data)) {
+          setProducts(data);
+        } else if (key === 'categories' && Array.isArray(data)) {
+          setCategories(data);
+        } else if (key === 'wallets' && data) {
+          setWallets(data);
+        } else if (key === 'blocked_customers' && data) {
+          setBlockedCustomers(data);
+        }
+      });
+    }
 
     // 1. Instant Realtime SSE streaming from Firebase RTDB for zero-delay order status, offers & free gift milestone changes
     let ordersEventSource = null;
@@ -1536,6 +1598,7 @@ export function StoreProvider({ children }) {
       if (ordersInboxEventSource) ordersInboxEventSource.close();
       if (offersEventSource) offersEventSource.close();
       if (milestonesEventSource) milestonesEventSource.close();
+      if (unsubSupabase) unsubSupabase();
     };
   }, [adminSoundEnabled]);
 
