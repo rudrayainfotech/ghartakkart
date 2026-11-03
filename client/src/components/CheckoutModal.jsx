@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useStore, FIREBASE_DB_URL, syncToFirebase } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
+import { fetchNodeFromSupabase } from '../supabase.js';
 import {
   X,
   MapPin,
@@ -307,61 +308,36 @@ export default function CheckoutModal() {
       localStorage.setItem('gk_products', JSON.stringify(updatedProducts));
     } catch {}
 
-    // 4. CRITICAL: Atomic direct write of the new order (~1.2 KB) with automatic retries
-    // This is instant (<50ms), reliable even on weak mobile networks, and guarantees
-    // the store admin terminal receives the order immediately without race conditions.
+    // 4. CRITICAL: Atomic direct write of the new order to Supabase
     window.__gkLastOrderWrite = Date.now();
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        const inboxRes = await fetch(`${FIREBASE_DB_URL}/orders_inbox/${newOrder.id}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(newOrder)
-        });
-        if (inboxRes && inboxRes.ok) {
-          break;
-        }
-      } catch (err) {
-        console.warn(`Order direct inbox save attempt ${attempt} warning:`, err);
-        if (attempt < 3) await new Promise(r => setTimeout(r, 350 * attempt));
-      }
+    try {
+      const existingRemote = await fetchNodeFromSupabase('orders');
+      let currentOrders = Array.isArray(existingRemote) ? existingRemote : [];
+      const updatedRemote = [newOrder, ...currentOrders.filter(o => o?.id !== newOrder.id)];
+      await syncToFirebase('orders', updatedRemote);
+      await syncToFirebase('orders_inbox', [newOrder]);
+    } catch (err) {
+      console.warn('Order Supabase sync error:', err);
     }
 
-    // Direct write to /orders/${newOrder.id}.json as second channel
-    fetch(`${FIREBASE_DB_URL}/orders/${newOrder.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(newOrder)
-    }).catch(() => {});
-
-    // 5. In background: merge into main /orders list & patch stock without blocking or delaying checkout
+    // 5. In background: patch product stock in Supabase
     (async () => {
       try {
-        const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (res.ok) {
-          const remoteData = await res.json();
-          const remoteList = Array.isArray(remoteData)
-            ? remoteData.filter(Boolean)
-            : remoteData && typeof remoteData === 'object'
-            ? Object.values(remoteData).filter(Boolean)
-            : [];
-          mergedOrders = [newOrder, ...remoteList.filter(o => o?.id !== newOrder.id)];
-          syncToFirebase('orders', mergedOrders);
+        const latestProducts = await fetchNodeFromSupabase('products');
+        if (Array.isArray(latestProducts)) {
+          const patched = latestProducts.map(p => {
+            const purchasedItem = (newOrder.items || []).find(it => it.product_id === p.id);
+            if (purchasedItem) {
+              return {
+                ...p,
+                stock: Math.max(0, (Number(p.stock) || 0) - (Number(purchasedItem.qty) || 0))
+              };
+            }
+            return p;
+          });
+          syncToFirebase('products', patched);
         }
       } catch {}
-
-      // Background tiny stock patch (only for purchased items, NEVER re-uploading the 6MB products list!)
-      (newOrder.items || []).forEach(it => {
-        const prodIdx = products.findIndex(p => p.id === it.product_id);
-        if (prodIdx !== -1) {
-          const newStock = Math.max(0, (Number(products[prodIdx].stock) || 0) - (Number(it.qty) || 0));
-          fetch(`${FIREBASE_DB_URL}/products/${prodIdx}/stock.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newStock)
-          }).catch(() => {});
-        }
-      });
     })();
   };
 

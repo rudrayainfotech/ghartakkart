@@ -4,7 +4,7 @@ import {
   XCircle, Clock, AlertTriangle, ExternalLink, User, FileText, 
   CreditCard, Eye, X, Check, RefreshCw, KeyRound, Camera 
 } from 'lucide-react';
-import { FIREBASE_DB_URL } from '../context/StoreContext.jsx';
+import { updateNodeItemInSupabase, syncNodeToSupabase } from '../supabase.js';
 
 export const STORE_SHIFTS = [
   'Morning Shift (07:00 AM - 12:00 PM)',
@@ -55,24 +55,13 @@ export function DeliveryPartnerAdminModal({ isOpen, onClose, rider, orders = [],
     };
 
     try {
-      const pKey = rider.phone || rider.id;
-      await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/delivery_partners/${pKey}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
-        }),
-        fetch(`${FIREBASE_DB_URL}/delivery_partners/${rider.id}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
-        })
-      ]);
+      await updateNodeItemInSupabase('delivery_partners', rider.id, updated);
+      await updateNodeItemInSupabase('staff', rider.id, updated);
       setKycStatus(status);
       setShowRejectInput(false);
       if (onRiderUpdated) onRiderUpdated(updated);
     } catch (e) {
-      console.error('Failed to update KYC in Firebase:', e);
+      console.error('Failed to update KYC in Supabase:', e);
     } finally {
       setIsSaving(false);
     }
@@ -87,15 +76,12 @@ export function DeliveryPartnerAdminModal({ isOpen, onClose, rider, orders = [],
     const updated = { ...rider, cash_in_hand: newCash };
 
     try {
-      await fetch(`${FIREBASE_DB_URL}/delivery_partners/${rider.id}.json`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cash_in_hand: newCash })
-      });
+      await updateNodeItemInSupabase('delivery_partners', rider.id, { cash_in_hand: newCash });
+      await updateNodeItemInSupabase('staff', rider.id, { cash_in_hand: newCash });
       setSettleAmount('');
       if (onRiderUpdated) onRiderUpdated(updated);
     } catch (e) {
-      console.error('Failed to settle cash in Firebase:', e);
+      console.error('Failed to settle cash in Supabase:', e);
     } finally {
       setIsSaving(false);
     }
@@ -124,19 +110,8 @@ export function DeliveryPartnerAdminModal({ isOpen, onClose, rider, orders = [],
     };
 
     try {
-      const pKey = rider.phone || rider.id;
-      await Promise.all([
-        fetch(`${FIREBASE_DB_URL}/delivery_partners/${pKey}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
-        }),
-        fetch(`${FIREBASE_DB_URL}/delivery_partners/${rider.id}.json`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updated)
-        })
-      ]);
+      await updateNodeItemInSupabase('delivery_partners', rider.id, updated);
+      await updateNodeItemInSupabase('staff', rider.id, updated);
 
       setSaveSuccessMsg('✓ Rider ID, Password & Shift updated successfully!');
       setTimeout(() => setSaveSuccessMsg(''), 4000);

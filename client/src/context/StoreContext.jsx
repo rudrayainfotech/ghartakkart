@@ -421,14 +421,17 @@ export function normalizeProductsList(raw) {
       ? p.images.filter(Boolean)
       : (p.image ? [p.image] : []);
     const imgs = rawImgs.map(img => {
-      if (typeof img === 'string' && img.startsWith('/product-images/')) {
+      if (typeof img === 'string') {
+        if (img.includes('vertexpsbyri.web.app/product-images/')) {
+          return img.replace('https://vertexpsbyri.web.app/product-images/', '/product-images/');
+        }
         return img;
       }
       return img;
     });
     let mainImg = imgs[0] || p.image || '';
-    if (typeof mainImg === 'string' && mainImg.startsWith('/product-images/')) {
-      mainImg = mainImg;
+    if (typeof mainImg === 'string' && mainImg.includes('vertexpsbyri.web.app/product-images/')) {
+      mainImg = mainImg.replace('https://vertexpsbyri.web.app/product-images/', '/product-images/');
     }
     const rawUnit = String(p.unit ?? '').trim();
     const baseUnit = (rawUnit && rawUnit !== '0') ? rawUnit : '1 unit';
@@ -1149,9 +1152,7 @@ export function StoreProvider({ children }) {
           sbInbox.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
           combinedOrders = Array.from(combinedMap.values());
         }
-        if (combinedOrders.length > 0) {
-          await mergeAndSyncOrders(combinedOrders, true);
-        }
+        await mergeAndSyncOrders(combinedOrders, true);
       }
       if (sbSettings && typeof sbSettings === 'object') {
         setSettings(prev => ({ ...prev, ...sbSettings }));

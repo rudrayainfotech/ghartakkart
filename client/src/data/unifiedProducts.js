@@ -2129,7 +2129,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792828275635",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792828275635.jpg"
+      "/product-images/prod-1792828275635.jpg"
     ],
     "mrp": 25,
     "name": "Methi",
@@ -2169,7 +2169,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792563532128",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792563532128.jpg"
+      "/product-images/prod-1792563532128.jpg"
     ],
     "mrp": 225,
     "name": "margherita Pizza 8 Inchi",
@@ -2201,7 +2201,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792555242834",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792555242834.jpg"
+      "/product-images/prod-1792555242834.jpg"
     ],
     "mrp": 125,
     "name": "Golden Rice Double Chabi",
@@ -2241,7 +2241,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792492123479",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792492123479.jpg"
+      "/product-images/prod-1792492123479.jpg"
     ],
     "mrp": 60,
     "name": "Hell Engery Drink",
@@ -2273,7 +2273,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792492067156",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792492067156.jpg"
+      "/product-images/prod-1792492067156.jpg"
     ],
     "mrp": 30,
     "name": "Campa Engery Drink",
@@ -2305,7 +2305,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792491989000",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792491989000.jpg"
+      "/product-images/prod-1792491989000.jpg"
     ],
     "mrp": 125,
     "name": "Redbull Engery Drink",
@@ -2337,7 +2337,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792491931715",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792491931715.jpg"
+      "/product-images/prod-1792491931715.jpg"
     ],
     "mrp": 125,
     "name": "Monster Energy Drink",
@@ -2369,7 +2369,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792473606349",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792473606349.jpg"
+      "/product-images/prod-1792473606349.jpg"
     ],
     "mrp": 30,
     "name": "Aloo Pyaj Kachori",
@@ -2401,7 +2401,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792473569094",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792473569094.jpg"
+      "/product-images/prod-1792473569094.jpg"
     ],
     "mrp": 50,
     "name": "Chowmein",
@@ -2433,7 +2433,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792473485418",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792473485418.jpg"
+      "/product-images/prod-1792473485418.jpg"
     ],
     "mrp": 60,
     "name": "Jalebi",
@@ -2473,7 +2473,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792473402416",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792473402416.jpg"
+      "/product-images/prod-1792473402416.jpg"
     ],
     "mrp": 75,
     "name": "Dhokla",
@@ -2505,7 +2505,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792473360131",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792473360131.jpg"
+      "/product-images/prod-1792473360131.jpg"
     ],
     "mrp": 80,
     "name": "Chole Bhature",
@@ -2537,7 +2537,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792400027125",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792400027125.jpg"
+      "/product-images/prod-1792400027125.jpg"
     ],
     "mrp": 65,
     "name": "Bread Pakora 2 Pcs",
@@ -2569,7 +2569,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792399962039",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792399962039.jpg"
+      "/product-images/prod-1792399962039.jpg"
     ],
     "mrp": 40,
     "name": "Samosa 2 Pcs",
@@ -2600,7 +2600,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312724363",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312724363.jpg"
+      "/product-images/prod-1792312724363.jpg"
     ],
     "mrp": 30,
     "name": "Kitkat Chocolate",
@@ -2631,7 +2631,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312659246",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312659246.jpg"
+      "/product-images/prod-1792312659246.jpg"
     ],
     "mrp": 20,
     "name": "5 Star Chocolate",
@@ -2662,7 +2662,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312585581",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312585581.jpg"
+      "/product-images/prod-1792312585581.jpg"
     ],
     "mrp": 10,
     "name": "Classic Lays Chips",
@@ -2694,7 +2694,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312565000",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312565000.jpg"
+      "/product-images/prod-1792312565000.jpg"
     ],
     "mrp": 10,
     "name": "Lays Chips magic masala",
@@ -2726,7 +2726,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312542853",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312542853.jpg"
+      "/product-images/prod-1792312542853.jpg"
     ],
     "mrp": 10,
     "name": "Lays Chips hot n sweet",
@@ -2758,7 +2758,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312470184",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312470184.jpg"
+      "/product-images/prod-1792312470184.jpg"
     ],
     "mrp": 10,
     "name": "Puffcorn",
@@ -2789,7 +2789,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312444220",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312444220.jpg"
+      "/product-images/prod-1792312444220.jpg"
     ],
     "mrp": 10,
     "name": "Kurkure",
@@ -2820,7 +2820,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312399097",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312399097.jpg"
+      "/product-images/prod-1792312399097.jpg"
     ],
     "mrp": 10,
     "name": "Lays Onion Chips",
@@ -2852,7 +2852,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312271639",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312271639.jpg"
+      "/product-images/prod-1792312271639.jpg"
     ],
     "mrp": 100,
     "name": "Dairy Milk Oero",
@@ -2883,7 +2883,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312184813",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312184813.jpg"
+      "/product-images/prod-1792312184813.jpg"
     ],
     "mrp": 100,
     "name": "Dairy Milk Skil",
@@ -2914,7 +2914,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312141045",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312141045.jpg"
+      "/product-images/prod-1792312141045.jpg"
     ],
     "mrp": 100,
     "name": "Dairy Milk 130 Gram",
@@ -2945,7 +2945,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792312076132",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792312076132.jpg"
+      "/product-images/prod-1792312076132.jpg"
     ],
     "mrp": 45,
     "name": "Dairy Milk 40G",
@@ -2976,7 +2976,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792311476858",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792311476858.jpg"
+      "/product-images/prod-1792311476858.jpg"
     ],
     "mrp": 149,
     "name": "Apsara Hamper For kids",
@@ -3007,7 +3007,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792306767587",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792306767587.jpg"
+      "/product-images/prod-1792306767587.jpg"
     ],
     "mrp": 70,
     "name": "Suji Macroni",
@@ -3047,7 +3047,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792170518372",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792170518372.jpg"
+      "/product-images/prod-1792170518372.jpg"
     ],
     "mrp": 79,
     "name": "Panner Fry Momos",
@@ -3087,7 +3087,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792170436293",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792170436293.jpg"
+      "/product-images/prod-1792170436293.jpg"
     ],
     "mrp": 79,
     "name": "Panner Steam Momo",
@@ -3127,7 +3127,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792170273948",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792170273948.jpg"
+      "/product-images/prod-1792170273948.jpg"
     ],
     "mrp": 1599,
     "name": "Customize Cakes",
@@ -3159,7 +3159,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792170147987",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792170147987.jpg"
+      "/product-images/prod-1792170147987.jpg"
     ],
     "mrp": 1059,
     "name": "Chocolate kit Kat cake",
@@ -3191,7 +3191,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792170088593",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792170088593.jpg"
+      "/product-images/prod-1792170088593.jpg"
     ],
     "mrp": 899,
     "name": "Chocolate with Choco Chips cake (Customize)",
@@ -3231,7 +3231,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792169933081",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792169933081.jpg"
+      "/product-images/prod-1792169933081.jpg"
     ],
     "mrp": 1199,
     "name": "Chocolate Truffle Cake Customize",
@@ -3271,7 +3271,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792169715092",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792169715092.jpg"
+      "/product-images/prod-1792169715092.jpg"
     ],
     "mrp": 799,
     "name": "Chocolate Cake",
@@ -3311,7 +3311,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792169522946",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792169522946.jpg"
+      "/product-images/prod-1792169522946.jpg"
     ],
     "mrp": 110,
     "name": "Strawberry Shake",
@@ -3343,7 +3343,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792169403475",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792169403475.jpg"
+      "/product-images/prod-1792169403475.jpg"
     ],
     "mrp": 199,
     "name": "Regula 8\" Pizza",
@@ -3375,7 +3375,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119814700",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119814700.jpg"
+      "/product-images/prod-1792119814700.jpg"
     ],
     "mrp": 399,
     "name": "Hungritos Bugrer Patty Aprox 22 Patty",
@@ -3407,7 +3407,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119669496",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119669496.jpg"
+      "/product-images/prod-1792119669496.jpg"
     ],
     "mrp": 80,
     "name": "Ananda French Fries",
@@ -3438,7 +3438,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119605735",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119605735.jpg"
+      "/product-images/prod-1792119605735.jpg"
     ],
     "mrp": 120,
     "name": "Ananda Mix Vegetable",
@@ -3469,7 +3469,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119551161",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119551161.jpg"
+      "/product-images/prod-1792119551161.jpg"
     ],
     "mrp": 99,
     "name": "Ananda Chap Roll",
@@ -3500,7 +3500,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119450292",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119450292.jpg"
+      "/product-images/prod-1792119450292.jpg"
     ],
     "mrp": 90,
     "name": "Ananda Sweets Corn",
@@ -3531,7 +3531,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725448891",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725448891.jpg"
+      "/product-images/prod-1791725448891.jpg"
     ],
     "mrp": 115,
     "name": "Dahi",
@@ -3578,7 +3578,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119307033",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119307033.jpg"
+      "/product-images/prod-1792119307033.jpg"
     ],
     "mrp": 30,
     "name": "Ananda Supreem 500 ML",
@@ -3609,7 +3609,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119231712",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119231712.jpg"
+      "/product-images/prod-1792119231712.jpg"
     ],
     "mrp": 20,
     "name": "Ananda Pasteurized Milk",
@@ -3640,7 +3640,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119163416",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119163416.jpg"
+      "/product-images/prod-1792119163416.jpg"
     ],
     "mrp": 36,
     "name": "Ananda Gold Milk",
@@ -3671,7 +3671,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792119050923",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792119050923.jpg"
+      "/product-images/prod-1792119050923.jpg"
     ],
     "mrp": 350,
     "name": "Karemed Tape Diaper",
@@ -3719,7 +3719,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118854074",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118854074.jpg"
+      "/product-images/prod-1792118854074.jpg"
     ],
     "mrp": 550,
     "name": "Karmed Adult Pant Diapers",
@@ -3767,7 +3767,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118626388",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118626388.jpg"
+      "/product-images/prod-1792118626388.jpg"
     ],
     "mrp": 319,
     "name": "LuvLap Diaper Size- S Buy 1 Get 1 Free",
@@ -3815,7 +3815,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118416991",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118416991.jpg"
+      "/product-images/prod-1792118416991.jpg"
     ],
     "mrp": 146,
     "name": "Santoor",
@@ -3847,7 +3847,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118366961",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118366961.jpg"
+      "/product-images/prod-1792118366961.jpg"
     ],
     "mrp": 155,
     "name": "Lifebuoy",
@@ -3879,7 +3879,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118295633",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118295633.jpg"
+      "/product-images/prod-1792118295633.jpg"
     ],
     "mrp": 182,
     "name": "Dettol Soap",
@@ -3911,7 +3911,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118213497",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118213497.jpg"
+      "/product-images/prod-1792118213497.jpg"
     ],
     "mrp": 130,
     "name": "Lux 5 PCS",
@@ -3951,7 +3951,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118109316",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118109316.jpg"
+      "/product-images/prod-1792118109316.jpg"
     ],
     "mrp": 125,
     "name": "No.1 Soap 5 PCS",
@@ -3991,7 +3991,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792118039283",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792118039283.jpg"
+      "/product-images/prod-1792118039283.jpg"
     ],
     "mrp": 725,
     "name": "Surfexcel",
@@ -4023,7 +4023,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792117952803",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792117952803.jpg"
+      "/product-images/prod-1792117952803.jpg"
     ],
     "mrp": 625,
     "name": "Tide 5KG Free Bucket",
@@ -4055,7 +4055,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792117770720",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792117770720.jpg"
+      "/product-images/prod-1792117770720.jpg"
     ],
     "mrp": 50,
     "name": "Tops Ketchup",
@@ -4087,7 +4087,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792117695676",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792117695676.jpg"
+      "/product-images/prod-1792117695676.jpg"
     ],
     "mrp": 89,
     "name": "Poha Pansari",
@@ -4119,7 +4119,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792117631926",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792117631926.jpg"
+      "/product-images/prod-1792117631926.jpg"
     ],
     "mrp": 200,
     "name": "Tops Mango Pickle",
@@ -4151,7 +4151,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792117582301",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792117582301.jpg"
+      "/product-images/prod-1792117582301.jpg"
     ],
     "mrp": 200,
     "name": "Tops MIxed Pickle",
@@ -4183,7 +4183,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792087511243",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792087511243.jpg"
+      "/product-images/prod-1792087511243.jpg"
     ],
     "mrp": 65,
     "name": "Kishmish Small",
@@ -4223,7 +4223,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792087410245",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792087410245.jpg"
+      "/product-images/prod-1792087410245.jpg"
     ],
     "mrp": 69,
     "name": "Kishmish",
@@ -4263,7 +4263,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792053143595",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792053143595.jpg"
+      "/product-images/prod-1792053143595.jpg"
     ],
     "mrp": 235,
     "name": "GULAB JAMUN",
@@ -4295,7 +4295,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792052798553",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792052798553.jpg"
+      "/product-images/prod-1792052798553.jpg"
     ],
     "mrp": 220,
     "name": "RASOGULLA",
@@ -4327,7 +4327,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1792052321284",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1792052321284.jpg"
+      "/product-images/prod-1792052321284.jpg"
     ],
     "mrp": 280,
     "name": "Soan Papdi",
@@ -4367,7 +4367,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791992122217",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791992122217.jpg"
+      "/product-images/prod-1791992122217.jpg"
     ],
     "mrp": 120,
     "name": "Chia seed",
@@ -4407,7 +4407,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791889324487",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791889324487.jpg"
+      "/product-images/prod-1791889324487.jpg"
     ],
     "mrp": 199,
     "name": "Jalapenos",
@@ -4438,7 +4438,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791889219288",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791889219288.jpg"
+      "/product-images/prod-1791889219288.jpg"
     ],
     "mrp": 245,
     "name": "Paprika",
@@ -4469,7 +4469,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791889133866",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791889133866.jpg"
+      "/product-images/prod-1791889133866.jpg"
     ],
     "mrp": 350,
     "name": "Black Olives",
@@ -4500,7 +4500,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791889039856",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791889039856.jpg"
+      "/product-images/prod-1791889039856.jpg"
     ],
     "mrp": 135,
     "name": "Ketchup",
@@ -4531,7 +4531,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888931387",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888931387.jpg"
+      "/product-images/prod-1791888931387.jpg"
     ],
     "mrp": 180,
     "name": "Sliced Mushroom",
@@ -4562,7 +4562,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888688711",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888688711.jpg"
+      "/product-images/prod-1791888688711.jpg"
     ],
     "mrp": 199,
     "name": "Schezwan Chuntey",
@@ -4593,7 +4593,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888577906",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888577906.jpg"
+      "/product-images/prod-1791888577906.jpg"
     ],
     "mrp": 50,
     "name": "Kulcha 5PCS",
@@ -4624,7 +4624,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888510319",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888510319.jpg"
+      "/product-images/prod-1791888510319.jpg"
     ],
     "mrp": 50,
     "name": "Pizza Base 8\"",
@@ -4655,7 +4655,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888475351",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888475351.jpg"
+      "/product-images/prod-1791888475351.jpg"
     ],
     "mrp": 32,
     "name": "Pizza Base 6\"",
@@ -4686,7 +4686,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888336438",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888336438.jpg"
+      "/product-images/prod-1791888336438.jpg"
     ],
     "mrp": 40,
     "name": "English Oven Burger Bun",
@@ -4717,7 +4717,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888267132",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888267132.jpg"
+      "/product-images/prod-1791888267132.jpg"
     ],
     "mrp": 47,
     "name": "Jumbo Burger Bun",
@@ -4748,7 +4748,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791888114459",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791888114459.jpg"
+      "/product-images/prod-1791888114459.jpg"
     ],
     "mrp": 40,
     "name": "English Oven Pav",
@@ -4779,7 +4779,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824947255",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824947255.jpg"
+      "/product-images/prod-1791824947255.jpg"
     ],
     "mrp": 95,
     "name": "Amul Paneer",
@@ -4810,7 +4810,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824811808",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824811808.jpg"
+      "/product-images/prod-1791824811808.jpg"
     ],
     "mrp": 250,
     "name": "Amul Cream",
@@ -4849,7 +4849,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824575922",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824575922.jpg"
+      "/product-images/prod-1791824575922.jpg"
     ],
     "mrp": 200,
     "name": "Fortune Refined",
@@ -4881,7 +4881,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824350013",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824350013.jpg"
+      "/product-images/prod-1791824350013.jpg"
     ],
     "mrp": 10,
     "name": "Kapoor",
@@ -4913,7 +4913,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824309734",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824309734.jpg"
+      "/product-images/prod-1791824309734.jpg"
     ],
     "mrp": 120,
     "name": "Sabudana",
@@ -4945,7 +4945,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824254684",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824254684.jpg"
+      "/product-images/prod-1791824254684.jpg"
     ],
     "mrp": 20,
     "name": "Parle G",
@@ -4977,7 +4977,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791824094043",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791824094043.jpg"
+      "/product-images/prod-1791824094043.jpg"
     ],
     "mrp": 20,
     "name": "Rusk",
@@ -5009,7 +5009,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823915193",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823915193.jpg"
+      "/product-images/prod-1791823915193.jpg"
     ],
     "mrp": 235,
     "name": "Nescafe Coffee",
@@ -5041,7 +5041,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823808280",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823808280.jpg"
+      "/product-images/prod-1791823808280.jpg"
     ],
     "mrp": 75,
     "name": "Bakery Cookies",
@@ -5073,7 +5073,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823663309",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823663309.jpg"
+      "/product-images/prod-1791823663309.jpg"
     ],
     "mrp": 125,
     "name": "Nyra Truffle",
@@ -5105,7 +5105,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823493445",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823493445.jpg"
+      "/product-images/prod-1791823493445.jpg"
     ],
     "mrp": 390,
     "name": "Pansari Tea",
@@ -5137,7 +5137,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823362852",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823362852.jpg"
+      "/product-images/prod-1791823362852.jpg"
     ],
     "mrp": 120,
     "name": "Dairy fills",
@@ -5169,7 +5169,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823240508",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823240508.jpg"
+      "/product-images/prod-1791823240508.jpg"
     ],
     "mrp": 200,
     "name": "Milky Bite",
@@ -5201,7 +5201,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791823041500",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791823041500.jpg"
+      "/product-images/prod-1791823041500.jpg"
     ],
     "mrp": 320,
     "name": "Taj Mahal",
@@ -5241,7 +5241,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791822841999",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791822841999.jpg"
+      "/product-images/prod-1791822841999.jpg"
     ],
     "mrp": 520,
     "name": "Tata Tea",
@@ -5281,7 +5281,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791822794046",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791822794046.jpg"
+      "/product-images/prod-1791822794046.jpg"
     ],
     "mrp": 265,
     "name": "Makhana",
@@ -5313,7 +5313,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791815198455",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791815198455.jpg"
+      "/product-images/prod-1791815198455.jpg"
     ],
     "mrp": 55,
     "name": "Vim Bar",
@@ -5345,7 +5345,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791812234836",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791812234836.jpg"
+      "/product-images/prod-1791812234836.jpg"
     ],
     "mrp": 550,
     "name": "Special Pista",
@@ -5377,7 +5377,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791812092118",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791812092118.jpg"
+      "/product-images/prod-1791812092118.jpg"
     ],
     "mrp": 550,
     "name": "Anjeer",
@@ -5409,7 +5409,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791811745730",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791811745730.jpg"
+      "/product-images/prod-1791811745730.jpg"
     ],
     "mrp": 240,
     "name": "Chawara",
@@ -5441,7 +5441,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791811267817",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791811267817.jpg"
+      "/product-images/prod-1791811267817.jpg"
     ],
     "mrp": 220,
     "name": "Munnaka",
@@ -5473,7 +5473,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740569258",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740569258.jpg"
+      "/product-images/prod-1791740569258.jpg"
     ],
     "mrp": 26,
     "name": "Haldi Powder",
@@ -5529,7 +5529,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791811098598",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791811098598.jpg"
+      "/product-images/prod-1791811098598.jpg"
     ],
     "mrp": 110,
     "name": "Dhaniya Powder",
@@ -5561,7 +5561,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740430984",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740430984.jpg"
+      "/product-images/prod-1791740430984.jpg"
     ],
     "mrp": 40,
     "name": "Lal Mirchi",
@@ -5617,7 +5617,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791810762386",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791810762386.jpg"
+      "/product-images/prod-1791810762386.jpg"
     ],
     "mrp": 310,
     "name": "Almonds",
@@ -5649,7 +5649,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791810293172",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791810293172.jpg"
+      "/product-images/prod-1791810293172.jpg"
     ],
     "mrp": 285,
     "name": "Ghartakkart Special Cashew",
@@ -5681,7 +5681,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791809947809",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791809947809.jpg"
+      "/product-images/prod-1791809947809.jpg"
     ],
     "mrp": 360,
     "name": "Cashew",
@@ -5713,7 +5713,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791809541059",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791809541059.jpg"
+      "/product-images/prod-1791809541059.jpg"
     ],
     "mrp": 521,
     "name": "Preet Lite Ghee",
@@ -5745,7 +5745,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791809431307",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791809431307.jpg"
+      "/product-images/prod-1791809431307.jpg"
     ],
     "mrp": 550,
     "name": "Masala Cashew",
@@ -5777,7 +5777,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791779031889",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791779031889.jpg"
+      "/product-images/prod-1791779031889.jpg"
     ],
     "mrp": 50,
     "name": "Kela",
@@ -5817,7 +5817,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778964324",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778964324.jpg"
+      "/product-images/prod-1791778964324.jpg"
     ],
     "mrp": 60,
     "name": "Garlic",
@@ -5857,7 +5857,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778843759",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778843759.jpg"
+      "/product-images/prod-1791778843759.jpg"
     ],
     "mrp": 60,
     "name": "Onion",
@@ -5897,7 +5897,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778510493",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778510493.jpg"
+      "/product-images/prod-1791778510493.jpg"
     ],
     "mrp": 60,
     "name": "Kheera",
@@ -5937,7 +5937,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778315307",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778315307.jpg"
+      "/product-images/prod-1791778315307.jpg"
     ],
     "mrp": 60,
     "name": "Mosami",
@@ -5977,7 +5977,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778257411",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778257411.jpg"
+      "/product-images/prod-1791778257411.jpg"
     ],
     "mrp": 160,
     "name": "Anar",
@@ -6017,7 +6017,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778208828",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778208828.jpg"
+      "/product-images/prod-1791778208828.jpg"
     ],
     "mrp": 50,
     "name": "Kiwi",
@@ -6049,7 +6049,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778159584",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778159584.jpg"
+      "/product-images/prod-1791778159584.jpg"
     ],
     "mrp": 180,
     "name": "Sita Fal",
@@ -6089,7 +6089,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778123162",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778123162.jpg"
+      "/product-images/prod-1791778123162.jpg"
     ],
     "mrp": 50,
     "name": "Watermaleon",
@@ -6121,7 +6121,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791778080614",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791778080614.jpg"
+      "/product-images/prod-1791778080614.jpg"
     ],
     "mrp": 80,
     "name": "Papita",
@@ -6153,7 +6153,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791777996268",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791777996268.jpg"
+      "/product-images/prod-1791777996268.jpg"
     ],
     "mrp": 80,
     "name": "Coconut Water",
@@ -6185,7 +6185,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791777944519",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791777944519.jpg"
+      "/product-images/prod-1791777944519.jpg"
     ],
     "mrp": 60,
     "name": "Amrud",
@@ -6217,7 +6217,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768962974",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768962974.jpg"
+      "/product-images/prod-1791768962974.jpg"
     ],
     "mrp": 55,
     "name": "Ghartak kart Classic Patties",
@@ -6249,7 +6249,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768766666",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768766666.jpg"
+      "/product-images/prod-1791768766666.jpg"
     ],
     "mrp": 110,
     "name": "Pav Bhaji",
@@ -6281,7 +6281,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768570645",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768570645.jpg"
+      "/product-images/prod-1791768570645.jpg"
     ],
     "mrp": 20,
     "name": "Thumsup",
@@ -6313,7 +6313,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768508384",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768508384.jpg"
+      "/product-images/prod-1791768508384.jpg"
     ],
     "mrp": 50,
     "name": "Fry Momos",
@@ -6353,7 +6353,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768355440",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768355440.jpg"
+      "/product-images/prod-1791768355440.jpg"
     ],
     "mrp": 40,
     "name": "Steam Momos",
@@ -6393,7 +6393,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768258316",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768258316.jpg"
+      "/product-images/prod-1791768258316.jpg"
     ],
     "mrp": 90,
     "name": "Tandoori Cheese Burger",
@@ -6425,7 +6425,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791768161173",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791768161173.jpg"
+      "/product-images/prod-1791768161173.jpg"
     ],
     "mrp": 58,
     "name": "Classic Veg Burger",
@@ -6489,7 +6489,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791767840302",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791767840302.jpg"
+      "/product-images/prod-1791767840302.jpg"
     ],
     "mrp": 95,
     "name": "Cold Coffee",
@@ -6521,7 +6521,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791767579132",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791767579132.jpg"
+      "/product-images/prod-1791767579132.jpg"
     ],
     "mrp": 155,
     "name": "Mix Sause Pasta",
@@ -6553,7 +6553,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791767434629",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791767434629.jpg"
+      "/product-images/prod-1791767434629.jpg"
     ],
     "mrp": 135,
     "name": "White Sause Pasta",
@@ -6585,7 +6585,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791767286549",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791767286549.jpg"
+      "/product-images/prod-1791767286549.jpg"
     ],
     "mrp": 110,
     "name": "Red Sauce Pasta",
@@ -6617,7 +6617,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791766151318",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791766151318.jpg"
+      "/product-images/prod-1791766151318.jpg"
     ],
     "mrp": 20,
     "name": "Nice",
@@ -6649,7 +6649,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791766013588",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791766013588.jpg"
+      "/product-images/prod-1791766013588.jpg"
     ],
     "mrp": 20,
     "name": "Cashew Biscuits",
@@ -6681,7 +6681,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791765921772",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791765921772.jpg"
+      "/product-images/prod-1791765921772.jpg"
     ],
     "mrp": 20,
     "name": "Coconut Biscuit",
@@ -6713,7 +6713,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791765746982",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791765746982.jpg"
+      "/product-images/prod-1791765746982.jpg"
     ],
     "mrp": 20,
     "name": "American Butter Biscuit",
@@ -6745,7 +6745,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791742464670",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791742464670.jpg"
+      "/product-images/prod-1791742464670.jpg"
     ],
     "mrp": 90,
     "name": "Haldiram Kashmiri Mixture",
@@ -6785,7 +6785,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791742234861",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791742234861.jpg"
+      "/product-images/prod-1791742234861.jpg"
     ],
     "mrp": 55,
     "name": "Haldiram Aloo Bhujiya",
@@ -6825,7 +6825,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791742131734",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791742131734.jpg"
+      "/product-images/prod-1791742131734.jpg"
     ],
     "mrp": 100,
     "name": "Haldiram Panchrattan",
@@ -6865,7 +6865,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791742013076",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791742013076.jpg"
+      "/product-images/prod-1791742013076.jpg"
     ],
     "mrp": 65,
     "name": "Haldiram Nut Crashers",
@@ -6905,7 +6905,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791741900094",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791741900094.jpg"
+      "/product-images/prod-1791741900094.jpg"
     ],
     "mrp": 58,
     "name": "Haldiram All in One",
@@ -6945,7 +6945,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791741766028",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791741766028.jpg"
+      "/product-images/prod-1791741766028.jpg"
     ],
     "mrp": 60,
     "name": "Haldiram Moong Dal",
@@ -6985,7 +6985,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791741604557",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791741604557.jpg"
+      "/product-images/prod-1791741604557.jpg"
     ],
     "mrp": 60,
     "name": "Haldiram Gupshup",
@@ -7025,7 +7025,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791741161565",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791741161565.jpg"
+      "/product-images/prod-1791741161565.jpg"
     ],
     "mrp": 275,
     "name": "Peanut butter",
@@ -7057,7 +7057,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740884462",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740884462.jpg"
+      "/product-images/prod-1791740884462.jpg"
     ],
     "mrp": 640,
     "name": "OK Tea",
@@ -7089,7 +7089,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740687688",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740687688.jpg"
+      "/product-images/prod-1791740687688.jpg"
     ],
     "mrp": 40,
     "name": "Jeera Powder",
@@ -7145,7 +7145,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740661773",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740661773.jpg"
+      "/product-images/prod-1791740661773.jpg"
     ],
     "mrp": 38,
     "name": "Jeera",
@@ -7201,7 +7201,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740246765",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740246765.webp"
+      "/product-images/prod-1791740246765.webp"
     ],
     "mrp": 182,
     "name": "Mustard Oil",
@@ -7233,7 +7233,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791740142509",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791740142509.jpg"
+      "/product-images/prod-1791740142509.jpg"
     ],
     "mrp": 290,
     "name": "Pansari Mustard oil",
@@ -7265,7 +7265,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791739701128",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791739701128.jpg"
+      "/product-images/prod-1791739701128.jpg"
     ],
     "mrp": 90,
     "name": "Maggi",
@@ -7297,7 +7297,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791739532894",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791739532894.avif"
+      "/product-images/prod-1791739532894.avif"
     ],
     "mrp": 159,
     "name": "Rajdhani Besan",
@@ -7329,7 +7329,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791739329652",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791739329652.jpg"
+      "/product-images/prod-1791739329652.jpg"
     ],
     "mrp": 450,
     "name": "Pooja Ghee",
@@ -7369,7 +7369,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791739104861",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791739104861.jpg"
+      "/product-images/prod-1791739104861.jpg"
     ],
     "mrp": 31,
     "name": "Sama Chawal",
@@ -7417,7 +7417,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738935148",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738935148.jpg"
+      "/product-images/prod-1791738935148.jpg"
     ],
     "mrp": 84,
     "name": "Kuttu Atta",
@@ -7457,7 +7457,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738783858",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738783858.webp"
+      "/product-images/prod-1791738783858.webp"
     ],
     "mrp": 165,
     "name": "Kuttu Mingi",
@@ -7489,7 +7489,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738704341",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738704341.jpg"
+      "/product-images/prod-1791738704341.jpg"
     ],
     "mrp": 45,
     "name": "Suji",
@@ -7521,7 +7521,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738632441",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738632441.jpg"
+      "/product-images/prod-1791738632441.jpg"
     ],
     "mrp": 42,
     "name": "Maida",
@@ -7553,7 +7553,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738561452",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738561452.jpg"
+      "/product-images/prod-1791738561452.jpg"
     ],
     "mrp": 112,
     "name": "Besan",
@@ -7585,7 +7585,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738494474",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738494474.jpg"
+      "/product-images/prod-1791738494474.jpg"
     ],
     "mrp": 65,
     "name": "Sugar",
@@ -7617,7 +7617,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738411484",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738411484.jpg"
+      "/product-images/prod-1791738411484.jpg"
     ],
     "mrp": 140,
     "name": "Arhar Dal",
@@ -7649,7 +7649,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738319491",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738319491.webp"
+      "/product-images/prod-1791738319491.webp"
     ],
     "mrp": 75,
     "name": "Matar Dal",
@@ -7681,7 +7681,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738142387",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738142387.jpg"
+      "/product-images/prod-1791738142387.jpg"
     ],
     "mrp": 125,
     "name": "Rajma",
@@ -7713,7 +7713,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738100345",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738100345.jpg"
+      "/product-images/prod-1791738100345.jpg"
     ],
     "mrp": 130,
     "name": "Kabuli Channa",
@@ -7745,7 +7745,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791738026066",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791738026066.jpg"
+      "/product-images/prod-1791738026066.jpg"
     ],
     "mrp": 95,
     "name": "Masoor Dal Polish",
@@ -7777,7 +7777,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791737886958",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791737886958.jpg"
+      "/product-images/prod-1791737886958.jpg"
     ],
     "mrp": 132,
     "name": "Saboot Masur Dal",
@@ -7809,7 +7809,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791737838789",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791737838789.jpg"
+      "/product-images/prod-1791737838789.jpg"
     ],
     "mrp": 118,
     "name": "Urad Dal",
@@ -7841,7 +7841,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791737774342",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791737774342.jpg"
+      "/product-images/prod-1791737774342.jpg"
     ],
     "mrp": 134,
     "name": "Moong Dal Dhoba",
@@ -7873,7 +7873,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791737684933",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791737684933.jpg"
+      "/product-images/prod-1791737684933.jpg"
     ],
     "mrp": 98,
     "name": "Desi Chana",
@@ -7905,7 +7905,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725827202",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725827202.jpg"
+      "/product-images/prod-1791725827202.jpg"
     ],
     "mrp": 120,
     "name": "Pineapple",
@@ -7937,7 +7937,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725783041",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725783041.jpg"
+      "/product-images/prod-1791725783041.jpg"
     ],
     "mrp": 120,
     "name": "Apple",
@@ -7977,7 +7977,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725742777",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725742777.jpg"
+      "/product-images/prod-1791725742777.jpg"
     ],
     "mrp": 40,
     "name": "Banana",
@@ -8017,7 +8017,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725655613",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725655613.jpg"
+      "/product-images/prod-1791725655613.jpg"
     ],
     "mrp": 110,
     "name": "White Bread",
@@ -8065,7 +8065,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725604529",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725604529.jpg"
+      "/product-images/prod-1791725604529.jpg"
     ],
     "mrp": 80,
     "name": "Safal Mattar",
@@ -8104,7 +8104,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725500607",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725500607.jpg"
+      "/product-images/prod-1791725500607.jpg"
     ],
     "mrp": 20,
     "name": "Butter Milk",
@@ -8135,7 +8135,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725394525",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725394525.jpg"
+      "/product-images/prod-1791725394525.jpg"
     ],
     "mrp": 315,
     "name": "Open Paneer",
@@ -8182,7 +8182,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725352292",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725352292.webp"
+      "/product-images/prod-1791725352292.webp"
     ],
     "mrp": 66,
     "name": "Amul Butter",
@@ -8214,7 +8214,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725289516",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725289516.jpg"
+      "/product-images/prod-1791725289516.jpg"
     ],
     "mrp": 36,
     "name": "Amul Milk",
@@ -8245,7 +8245,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725140624",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725140624.jpg"
+      "/product-images/prod-1791725140624.jpg"
     ],
     "mrp": 50,
     "name": "Karela",
@@ -8285,7 +8285,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725071325",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725071325.jpg"
+      "/product-images/prod-1791725071325.jpg"
     ],
     "mrp": 40,
     "name": "Phool Gobhi",
@@ -8325,7 +8325,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725038298",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725038298.jpg"
+      "/product-images/prod-1791725038298.jpg"
     ],
     "mrp": 50,
     "name": "Bandh Gobhi",
@@ -8365,7 +8365,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791725000547",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791725000547.jpg"
+      "/product-images/prod-1791725000547.jpg"
     ],
     "mrp": 250,
     "name": "Amla",
@@ -8413,7 +8413,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724969765",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724969765.jpg"
+      "/product-images/prod-1791724969765.jpg"
     ],
     "mrp": 70,
     "name": "Gajar",
@@ -8453,7 +8453,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724934618",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724934618.jpg"
+      "/product-images/prod-1791724934618.jpg"
     ],
     "mrp": 50,
     "name": "Palak",
@@ -8493,7 +8493,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724902468",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724902468.jpg"
+      "/product-images/prod-1791724902468.jpg"
     ],
     "mrp": 50,
     "name": "Mooli",
@@ -8533,7 +8533,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724816125",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724816125.jpg"
+      "/product-images/prod-1791724816125.jpg"
     ],
     "mrp": 50,
     "name": "Arbi",
@@ -8581,7 +8581,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724774574",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724774574.jpg"
+      "/product-images/prod-1791724774574.jpg"
     ],
     "mrp": 150,
     "name": "Shimla Mirch",
@@ -8629,7 +8629,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724718676",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724718676.jpg"
+      "/product-images/prod-1791724718676.jpg"
     ],
     "mrp": 50,
     "name": "Kaddu",
@@ -8669,7 +8669,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724664649",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724664649.jpg"
+      "/product-images/prod-1791724664649.jpg"
     ],
     "mrp": 50,
     "name": "Baingan",
@@ -8709,7 +8709,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724573967",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724573967.jpg"
+      "/product-images/prod-1791724573967.jpg"
     ],
     "mrp": 15,
     "name": "Adrak",
@@ -8749,7 +8749,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724535884",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724535884.jpg"
+      "/product-images/prod-1791724535884.jpg"
     ],
     "mrp": 50,
     "name": "Bhindi",
@@ -8797,7 +8797,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724479803",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724479803.jpg"
+      "/product-images/prod-1791724479803.jpg"
     ],
     "mrp": 40,
     "name": "Lauki",
@@ -8837,7 +8837,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724424592",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724424592.jpg"
+      "/product-images/prod-1791724424592.jpg"
     ],
     "mrp": 20,
     "name": "Nimbu",
@@ -8877,7 +8877,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724377530",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724377530.jpg"
+      "/product-images/prod-1791724377530.jpg"
     ],
     "mrp": 20,
     "name": "Hari Mirchi",
@@ -8917,7 +8917,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724311163",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724311163.jpg"
+      "/product-images/prod-1791724311163.jpg"
     ],
     "mrp": 20,
     "name": "Dhaniya",
@@ -8957,7 +8957,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791724220095",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791724220095.jpg"
+      "/product-images/prod-1791724220095.jpg"
     ],
     "mrp": 35,
     "name": "Tomato",
@@ -8997,7 +8997,7 @@ export const UNIFIED_DEFAULT_PRODUCTS = [
     "hsn_code": "",
     "id": "prod-1791723522384",
     "images": [
-      "https://vertexpsbyri.web.app/product-images/prod-1791723522384.jpg"
+      "/product-images/prod-1791723522384.jpg"
     ],
     "mrp": 23,
     "name": "Potato",

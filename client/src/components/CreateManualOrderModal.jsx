@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { useStore, syncToFirebase, FIREBASE_DB_URL } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
+import { fetchNodeFromSupabase } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
   X,
@@ -300,19 +301,13 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
       setProducts(updatedProducts);
       try { localStorage.setItem('gk_products', JSON.stringify(updatedProducts)); } catch {}
 
-      // 2. Fetch and merge with latest orders
+      // 2. Fetch and merge with latest orders from Supabase
       window.__gkLastOrderWrite = Date.now();
       let mergedOrders = [newOrder, ...orders.filter(o => o?.id !== newOrder.id)];
       try {
-        const res = await fetch(`${FIREBASE_DB_URL}/orders.json?t=${Date.now()}`, { cache: 'no-store' });
-        if (res.ok) {
-          const remoteData = await res.json();
-          const remoteList = Array.isArray(remoteData)
-            ? remoteData.filter(Boolean)
-            : remoteData && typeof remoteData === 'object'
-            ? Object.values(remoteData).filter(Boolean)
-            : [];
-          mergedOrders = [newOrder, ...remoteList.filter(o => o?.id !== newOrder.id)];
+        const remoteData = await fetchNodeFromSupabase('orders');
+        if (Array.isArray(remoteData)) {
+          mergedOrders = [newOrder, ...remoteData.filter(o => o?.id !== newOrder.id)];
         }
       } catch (err) {
         console.warn('Could not fetch existing remote orders before merge:', err);
@@ -321,34 +316,30 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
       setOrders(mergedOrders);
       try { localStorage.setItem('gk_orders', JSON.stringify(mergedOrders)); } catch {}
 
-      // 3. Fast atomic save to Firebase orders_inbox + direct orders slot + main orders list
+      // 3. Fast atomic save to Supabase store_kv
       window.__gkLastOrderWrite = Date.now();
-      await fetch(`${FIREBASE_DB_URL}/orders_inbox/${newOrder.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
-      }).catch(() => {});
-
-      await fetch(`${FIREBASE_DB_URL}/orders/${newOrder.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newOrder)
-      }).catch(() => {});
-
       await syncToFirebase('orders', mergedOrders);
+      await syncToFirebase('orders_inbox', [newOrder]);
 
-      // Background tiny stock patch (only for purchased items, NEVER re-uploading the 6MB catalog)
-      (newOrder.items || []).forEach(it => {
-        const prodIdx = products.findIndex(p => p.id === it.product_id);
-        if (prodIdx !== -1) {
-          const newStock = Math.max(0, (Number(products[prodIdx].stock) || 0) - (Number(it.qty) || 0));
-          fetch(`${FIREBASE_DB_URL}/products/${prodIdx}/stock.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newStock)
-          }).catch(() => {});
-        }
-      });
+      // Background stock patch in Supabase
+      (async () => {
+        try {
+          const latestProducts = await fetchNodeFromSupabase('products');
+          if (Array.isArray(latestProducts)) {
+            const patched = latestProducts.map(p => {
+              const purchasedItem = (newOrder.items || []).find(it => it.product_id === p.id);
+              if (purchasedItem) {
+                return {
+                  ...p,
+                  stock: Math.max(0, (Number(p.stock) || 0) - (Number(purchasedItem.qty) || 0))
+                };
+              }
+              return p;
+            });
+            syncToFirebase('products', patched);
+          }
+        } catch {}
+      })();
 
       // 4. Audit Log
       if (addAuditLog) {
