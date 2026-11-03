@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-export const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://dyylqpxhkenlnonujwwi.supabase.co';
-export const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5eWxxcHhoa2VubG5vbnVqd3dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2OTMyMjMsImV4cCI6MjEwOTI2OTIyM30.hpfPwdkmJrAkohymM6mJuMXHGG4hg3J-0q0SrzbSRkw';
+const metaEnv = (typeof import.meta !== 'undefined' && import.meta && import.meta.env) ? import.meta.env : {};
+const procEnv = (typeof process !== 'undefined' && process && process.env) ? process.env : {};
+
+export const SUPABASE_URL = metaEnv.VITE_SUPABASE_URL || procEnv.VITE_SUPABASE_URL || 'https://dyylqpxhkenlnonujwwi.supabase.co';
+export const SUPABASE_ANON_KEY = metaEnv.VITE_SUPABASE_ANON_KEY || procEnv.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR5eWxxcHhoa2VubG5vbnVqd3dpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2OTMyMjMsImV4cCI6MjEwOTI2OTIyM30.hpfPwdkmJrAkohymM6mJuMXHGG4hg3J-0q0SrzbSRkw';
 
 export const isSupabaseConfigured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -19,26 +22,66 @@ export const supabase = isSupabaseConfigured
  * Universal sync helper to Supabase store_kv table
  * Mirrors the exact JSON document behavior of Firebase RTDB
  */
-export async function syncNodeToSupabase(key, data) {
-  if (!supabase) return false;
+export async function directRestUpsert(key, data) {
   try {
-    const { error } = await supabase
-      .from('store_kv')
-      .upsert({
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/store_kv?on_conflict=key`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'resolution=merge-duplicates'
+      },
+      body: JSON.stringify({
         key: String(key),
         data: data,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'key' });
-
-    if (error) {
-      console.warn(`[Supabase Sync] Warning writing to ${key}:`, error.message);
-      return false;
-    }
-    return true;
+      })
+    });
+    return res.ok;
   } catch (err) {
-    console.warn(`[Supabase Sync] Error writing to ${key}:`, err);
+    console.warn(`[Supabase REST Fallback] Write error on ${key}:`, err);
     return false;
   }
+}
+
+export async function directRestFetch(key) {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/store_kv?key=eq.${encodeURIComponent(key)}&select=data`, {
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`
+      }
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json?.[0]?.data ?? null;
+  } catch (err) {
+    console.warn(`[Supabase REST Fallback] Read error on ${key}:`, err);
+    return null;
+  }
+}
+
+export async function syncNodeToSupabase(key, data) {
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+  try {
+    if (supabase) {
+      const { error } = await supabase
+        .from('store_kv')
+        .upsert({
+          key: String(key),
+          data: data,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'key' });
+
+      if (!error) return true;
+      console.warn(`[Supabase Sync] Warning writing to ${key}:`, error.message);
+    }
+  } catch (err) {
+    console.warn(`[Supabase Sync] Error writing to ${key}:`, err);
+  }
+  // Robust HTTP fallback
+  return await directRestUpsert(key, data);
 }
 
 // Alias for seamless backward compatibility
@@ -49,20 +92,22 @@ export const syncToFirebase = syncNodeToSupabase;
  * Universal fetch helper from Supabase store_kv table
  */
 export async function fetchNodeFromSupabase(key) {
-  if (!supabase) return null;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
   try {
-    const { data, error } = await supabase
-      .from('store_kv')
-      .select('data')
-      .eq('key', String(key))
-      .maybeSingle();
+    if (supabase) {
+      const { data, error } = await supabase
+        .from('store_kv')
+        .select('data')
+        .eq('key', String(key))
+        .maybeSingle();
 
-    if (error || !data) return null;
-    return data.data;
+      if (!error && data) return data.data;
+    }
   } catch (err) {
     console.warn(`[Supabase Fetch] Error reading ${key}:`, err);
-    return null;
   }
+  // Robust HTTP fallback
+  return await directRestFetch(key);
 }
 
 /**

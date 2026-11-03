@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
-import { fetchNodeFromSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, syncNodeToSupabase } from '../supabase.js';
 import {
   X,
   MapPin,
@@ -311,11 +311,14 @@ export default function CheckoutModal() {
     // 4. CRITICAL: Atomic direct write of the new order to Supabase
     window.__gkLastOrderWrite = Date.now();
     try {
+      // 4a. Immediate Inbox ping for zero-delay admin notification
+      await syncNodeToSupabase('orders_inbox', [newOrder]);
+
+      // 4b. Prepend order to full store orders
       const existingRemote = await fetchNodeFromSupabase('orders');
       let currentOrders = Array.isArray(existingRemote) ? existingRemote : [];
       const updatedRemote = [newOrder, ...currentOrders.filter(o => o?.id !== newOrder.id)];
-      await syncToFirebase('orders', updatedRemote);
-      await syncToFirebase('orders_inbox', [newOrder]);
+      await syncNodeToSupabase('orders', updatedRemote);
     } catch (err) {
       console.warn('Order Supabase sync error:', err);
     }
@@ -656,7 +659,12 @@ export default function CheckoutModal() {
         unit: it.unit,
         price: it.price,
         purchase_price: Number(it.purchase_price) || 0,
-        qty: it.qty
+        qty: it.qty,
+        image: (it.image && !it.image.startsWith('data:'))
+          ? it.image
+          : (it.images?.[0] && !it.images[0].startsWith('data:'))
+          ? it.images[0]
+          : '/product-images/prod-1791723522384.jpg'
       })),
       distance_km: userLocation.distance_km || 0.5,
       delivery_slot: deliverySlot,
@@ -809,7 +817,12 @@ export default function CheckoutModal() {
         unit: it.unit,
         price: it.price,
         purchase_price: Number(it.purchase_price) || 0,
-        qty: it.qty
+        qty: it.qty,
+        image: (it.image && !it.image.startsWith('data:'))
+          ? it.image
+          : (it.images?.[0] && !it.images[0].startsWith('data:'))
+          ? it.images[0]
+          : '/product-images/prod-1791723522384.jpg'
       })),
       distance_km: userLocation.distance_km || 0.5,
       delivery_slot: deliverySlot,

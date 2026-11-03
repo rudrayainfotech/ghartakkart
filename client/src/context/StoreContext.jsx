@@ -1046,18 +1046,35 @@ export function StoreProvider({ children }) {
     }
   }, [offers, appliedCoupon, cartSubtotal]);
 
-  // Smart Order Merger: merges Firebase /orders.json with local gk_orders by updated_at
-  // and automatically heals Firebase /orders.json if local orders were missing remotely
+  // Smart Order Merger: merges Supabase orders with local gk_orders by updated_at
+  // and automatically heals Supabase store_kv if local orders were missing remotely
   const mergeAndSyncOrders = async (remoteOrdersRaw, isBackgroundPoll = false) => {
     const isRecentLocalWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2500);
     if (isRecentLocalWrite) return;
 
-    const remoteList = normalizeFirebaseList(remoteOrdersRaw) || [];
+    // Filter out dummy/synthetic orders so store only reflects real orders
+    const FAKE_NAMES = new Set([
+      'Mayank Agrawal', 'Rahul Sharma', 'Amit Kumar', 'Pooja Verma', 'Rohit Singh',
+      'Deepak Gupta', 'Suresh Chandra', 'Priya Bansal', 'Vikram Singh', 'Neha Sharma',
+      'Manoj Kumar', 'Sunita Devi', 'Dharmendra Singh', 'Ankit Sharma', 'Rajeev Kumar',
+      'Sanjay Agrawal', 'Vipin Kumar', 'Gaurav Chaudhary', 'Kavita Rani', 'Sachin Kumar',
+      'Rahul Verma', 'Pooja Malhotra'
+    ]);
+    const isGenuineOrder = (o) => {
+      if (!o || !o.id) return false;
+      if (FAKE_NAMES.has(o.customer_name) && o.order_status === 'Delivered') {
+        return false;
+      }
+      return true;
+    };
+
+    const rawRemote = normalizeFirebaseList(remoteOrdersRaw) || [];
+    const remoteList = rawRemote.filter(isGenuineOrder);
     let localList = [];
     try {
       const saved = localStorage.getItem('gk_orders');
-      localList = saved ? JSON.parse(saved) : [];
-      if (!Array.isArray(localList)) localList = [];
+      const parsed = saved ? JSON.parse(saved) : [];
+      localList = Array.isArray(parsed) ? parsed.filter(isGenuineOrder) : [];
     } catch {
       localList = [];
     }
@@ -1072,10 +1089,10 @@ export function StoreProvider({ children }) {
       }
     }
 
-    // 2. Merge local orders: if a local order is missing on Firebase (e.g. Firebase node was empty)
-    // or has a strictly newer updated_at timestamp, keep the newer one and heal Firebase
+    // 2. Merge local orders: if a local order is missing on Supabase
+    // or has a strictly newer updated_at timestamp, keep the newer one and heal
     const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
-    for (const lOrder of localList) {
+    for (const lOrder of cleanLocalList = localList) {
       if (!lOrder || !lOrder.id) continue;
       const existingRemote = orderMap.get(lOrder.id);
       if (!existingRemote) {
@@ -1092,6 +1109,11 @@ export function StoreProvider({ children }) {
           needsRemoteHeal = true;
         }
       }
+    }
+
+    // Also check if remote had fake orders that need to be cleared from remote
+    if (rawRemote.length !== remoteList.length) {
+      needsRemoteHeal = true;
     }
 
     const mergedOrders = Array.from(orderMap.values()).sort(
