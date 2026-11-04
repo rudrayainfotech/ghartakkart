@@ -1405,10 +1405,10 @@ export function StoreProvider({ children }) {
     window.addEventListener('focus', handleFocusSync);
     window.addEventListener('pageshow', handleVisibilitySync);
 
-    // 3. Fast 1.5-second poll of /orders.json, /settings.json, /offers.json & /milestone_gifts.json
+    // 3. Fast 2-second poll of orders, inbox & settings
     const fastOrdersInterval = setInterval(() => {
       pollOrdersFast();
-    }, 1500);
+    }, 2000);
 
     // 4. Slow 25-second poll for full catalog
     const catalogInterval = setInterval(() => {

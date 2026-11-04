@@ -7,6 +7,17 @@ export default defineConfig({
   plugins: [
     react(),
     {
+      name: 'admin-dev-rewrite',
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === '/' || req.url === '/admin' || req.url?.startsWith('/admin?')) {
+            req.url = '/admin.html';
+          }
+          next();
+        });
+      }
+    },
+    {
       name: 'rename-admin-html-to-index',
       closeBundle() {
         const outDir = resolve(__dirname, 'dist-admin');
@@ -26,6 +37,11 @@ export default defineConfig({
       }
     }
   ],
+  server: {
+    port: 3001,
+    host: true,
+    open: true
+  },
   build: {
     outDir: 'dist-admin',
     emptyOutDir: true,
