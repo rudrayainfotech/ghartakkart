@@ -29,7 +29,7 @@ export default function MobileBottomNav() {
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
   const activeOffersCount =
     (offers || []).filter(o => o && o.active !== false).length +
-    (milestoneGifts || []).filter(m => m && m.active !== false).length + 1;
+    (milestoneGifts || []).filter(m => m && m.active !== false).length;
 
   const isHomeActive = selectedCategory === 'all' && !isCategoriesModalOpen && !isOfferZoneOpen;
   const isCategoriesActive = isCategoriesModalOpen || (selectedCategory !== 'all' && !isOfferZoneOpen);

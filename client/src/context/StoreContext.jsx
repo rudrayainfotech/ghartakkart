@@ -614,11 +614,14 @@ export function StoreProvider({ children }) {
       const saved = localStorage.getItem('gk_offers');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const realOffers = parsed.filter(o => o && (!['offer-1', 'offer-2', 'offer-3'].includes(o.id) || o.userCreated));
+          return realOffers;
+        }
       }
-      return DEFAULT_OFFERS;
+      return [];
     } catch {
-      return DEFAULT_OFFERS;
+      return [];
     }
   });
 
@@ -627,11 +630,14 @@ export function StoreProvider({ children }) {
       const saved = localStorage.getItem('gk_milestone_gifts');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const realMilestones = parsed.filter(m => m && (!['milestone-149', 'milestone-249', 'milestone-349'].includes(m.id) || m.userCreated));
+          return realMilestones;
+        }
       }
-      return DEFAULT_MILESTONE_GIFTS;
+      return [];
     } catch {
-      return DEFAULT_MILESTONE_GIFTS;
+      return [];
     }
   });
 
@@ -1022,24 +1028,30 @@ export function StoreProvider({ children }) {
   const applyRemoteOffers = (rawOffers) => {
     const isRecentOfferWrite = window.__gkLastOfferWrite && (Date.now() - window.__gkLastOfferWrite < 2500);
     if (isRecentOfferWrite) return;
-    if (rawOffers === null || rawOffers === undefined) {
-      setOffers(DEFAULT_OFFERS);
-      try { localStorage.setItem('gk_offers', JSON.stringify(DEFAULT_OFFERS)); } catch {}
-      syncToFirebase('offers', DEFAULT_OFFERS);
+    if (!rawOffers || (Array.isArray(rawOffers) && rawOffers.length === 0)) {
+      setOffers([]);
+      try { localStorage.setItem('gk_offers', JSON.stringify([])); } catch {}
       return;
     }
     const list = normalizeFirebaseList(rawOffers) || [];
-    setOffers(list);
-    try { localStorage.setItem('gk_offers', JSON.stringify(list)); } catch {}
+    const cleanList = list.filter(o => o && (!['offer-1', 'offer-2', 'offer-3'].includes(o.id) || o.userCreated));
+    setOffers(cleanList);
+    try { localStorage.setItem('gk_offers', JSON.stringify(cleanList)); } catch {}
   };
 
   const applyRemoteMilestones = (rawMilestones) => {
     const isRecentMilestoneWrite = window.__gkLastMilestoneWrite && (Date.now() - window.__gkLastMilestoneWrite < 2500);
     if (isRecentMilestoneWrite) return;
+    if (!rawMilestones || (Array.isArray(rawMilestones) && rawMilestones.length === 0)) {
+      setMilestoneGifts([]);
+      try { localStorage.setItem('gk_milestone_gifts', JSON.stringify([])); } catch {}
+      return;
+    }
     const list = normalizeFirebaseList(rawMilestones) || [];
-    list.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-    setMilestoneGifts(list);
-    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(list)); } catch {}
+    const cleanList = list.filter(m => m && (!['milestone-149', 'milestone-249', 'milestone-349'].includes(m.id) || m.userCreated));
+    cleanList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+    setMilestoneGifts(cleanList);
+    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(cleanList)); } catch {}
   };
 
   useEffect(() => {
@@ -1190,8 +1202,8 @@ export function StoreProvider({ children }) {
       if (sbSettings && typeof sbSettings === 'object') {
         setSettings(prev => ({ ...prev, ...sbSettings }));
       }
-      if (sbOffers) applyRemoteOffers(sbOffers);
-      if (sbMilestones) applyRemoteMilestones(sbMilestones);
+      if (sbOffers !== undefined) applyRemoteOffers(sbOffers);
+      if (sbMilestones !== undefined) applyRemoteMilestones(sbMilestones);
       if (sbBlocked && typeof sbBlocked === 'object') setBlockedCustomers(sbBlocked);
     } catch {} finally {
       isPollingOrdersRef.current = false;
@@ -1244,8 +1256,8 @@ export function StoreProvider({ children }) {
             setCategories(sbCategories);
             try { localStorage.setItem('gk_categories', JSON.stringify(sbCategories)); } catch {}
           }
-          if (sbOffers) applyRemoteOffers(sbOffers);
-          if (sbMilestones) applyRemoteMilestones(sbMilestones);
+          if (sbOffers !== undefined) applyRemoteOffers(sbOffers);
+          if (sbMilestones !== undefined) applyRemoteMilestones(sbMilestones);
           if (sbBlocked && typeof sbBlocked === 'object') setBlockedCustomers(sbBlocked);
           if (sbWallets && typeof sbWallets === 'object') setWallets(sbWallets);
         } catch (sbErr) {

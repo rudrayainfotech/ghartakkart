@@ -118,7 +118,7 @@ export default function OfferZoneModal() {
               <div className="flex items-center gap-2">
                 <h3 className="font-black text-lg sm:text-xl tracking-tight">Offer Zone 🔥</h3>
                 <span className="bg-white/25 text-white text-[10px] font-black uppercase px-2 py-0.5 rounded-full backdrop-blur-sm">
-                  {activeOffers.length + activeMilestones.length + 1} Live Deals
+                  {activeOffers.length + activeMilestones.length} Live Deals
                 </span>
               </div>
               <p className="text-xs text-amber-100 font-medium">
@@ -151,7 +151,7 @@ export default function OfferZoneModal() {
                 : 'bg-white text-gray-600 hover:text-gray-900 border border-gray-200'
             }`}
           >
-            All Offers ({activeOffers.length + activeMilestones.length + 1})
+            All Offers ({activeOffers.length + activeMilestones.length})
           </button>
           <button
             type="button"

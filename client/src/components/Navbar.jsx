@@ -51,7 +51,7 @@ export default function Navbar() {
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0);
   const activeDealsCount =
     (offers || []).filter(o => o && o.active !== false).length +
-    (milestoneGifts || []).filter(m => m && m.active !== false).length + 1;
+    (milestoneGifts || []).filter(m => m && m.active !== false).length;
   const activeStamps = customerStampStatus?.activeStamps || 0;
 
   return (
@@ -275,9 +275,11 @@ export default function Navbar() {
             >
               <Flame className="w-3.5 h-3.5 animate-pulse text-amber-200 shrink-0" />
               <span className="hidden xs:inline">Offers</span>
-              <span className="bg-white/25 text-white text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full leading-none">
-                {activeDealsCount}
-              </span>
+              {activeDealsCount > 0 && (
+                <span className="bg-white/25 text-white text-[9px] sm:text-[10px] font-black px-1.5 py-0.2 rounded-full leading-none">
+                  {activeDealsCount}
+                </span>
+              )}
             </button>
           )}
 

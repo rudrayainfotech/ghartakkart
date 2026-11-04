@@ -3188,9 +3188,10 @@ Thank you for shopping with ${storeName}! 🙏`;
 
   const handleRestoreDefaultOffers = async () => {
     if (!window.confirm('Restore standard default offers and coupons?')) return;
-    setOffers(DEFAULT_OFFERS);
-    try { localStorage.setItem('gk_offers', JSON.stringify(DEFAULT_OFFERS)); } catch {}
-    await syncToFirebase('offers', DEFAULT_OFFERS);
+    const userRestored = DEFAULT_OFFERS.map(o => ({ ...o, userCreated: true, created_at: new Date().toISOString() }));
+    setOffers(userRestored);
+    try { localStorage.setItem('gk_offers', JSON.stringify(userRestored)); } catch {}
+    await syncToFirebase('offers', userRestored);
     addAuditLog({
       action: 'Restored Default Offers',
       details: 'Restored standard default welcome, veggie & fast food coupon offers.'
@@ -3432,6 +3433,7 @@ Thank you for shopping with ${storeName}! 🙏`;
   const handleRestoreDefaultMilestones = async () => {
     const restored = DEFAULT_MILESTONE_GIFTS.map(m => ({
       ...m,
+      userCreated: true,
       active: true,
       updated_at: new Date().toISOString()
     }));
