@@ -15,9 +15,9 @@ import { playChime } from './utils/sound.js';
 
 // Official MSG91 Production Credentials
 export const MSG91_CONFIG = {
-  widgetId: "366a786e7935393635333037",
-  tokenAuth: "584348T9VOGj656adcc051P1",
-  authKey: "584348AF6eaeRX6adcbb2fP1",
+  widgetId: "366b65685947363636393032",
+  tokenAuth: "587557TQWDRAWc6aec439fP1",
+  authKey: "587557TQWDRAWc6aec439fP1",
   templateId: "6adcb8421850695632091de3",
   senderId: "GHRTAK"
 };
@@ -144,7 +144,13 @@ export default function PhoneLogin({ onSuccess }) {
                 })
               }).then(r => r.json()).then(res => {
                 console.log('[MSG91] verifyAccessToken verified:', res);
-              }).catch(() => {});
+              }).catch(() => {
+                fetch('/api/otp/verify-access-token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ accessToken })
+                }).catch(() => {});
+              });
             } catch (vErr) {
               console.warn('[MSG91] verifyAccessToken call notice:', vErr);
             }

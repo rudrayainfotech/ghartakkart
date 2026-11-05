@@ -47,10 +47,10 @@ const DEFAULT_SETTINGS = {
   vendor_google_sheet_url: 'https://docs.google.com/spreadsheets/d/1UWjAKy9lqLOD_mhzD2KULs_P133WWWZZN8jLlKq8o14/edit?usp=sharing',
   vendor_google_sheet_id: '1UWjAKy9lqLOD_mhzD2KULs_P133WWWZZN8jLlKq8o14',
   vendor_google_sheet_webhook: '',
-  msg91_auth_key: '584348AF6eaeRX6adcbb2fP1',
+  msg91_auth_key: '587557TQWDRAWc6aec439fP1',
   msg91_template_id: '6adcb8421850695632091de3',
-  msg91_widget_id: '366a786e7935393635333037',
-  msg91_token_auth: '584348T9VOGj656adcc051P1'
+  msg91_widget_id: '366b65685947363636393032',
+  msg91_token_auth: '587557TQWDRAWc6aec439fP1'
 };
 
 const DEFAULT_CATEGORIES = [

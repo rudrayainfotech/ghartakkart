@@ -192,8 +192,35 @@ export function checkAdminAuth(req, res, next) {
 }
 
 // MSG91 Customer OTP Authentication Endpoints
-const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY || '584348AF6eaeRX6adcbb2fP1';
+const MSG91_AUTH_KEY = process.env.MSG91_AUTH_KEY || '587557TQWDRAWc6aec439fP1';
 const MSG91_TEMPLATE_ID = process.env.MSG91_TEMPLATE_ID || '6adcb8421850695632091de3';
+const MSG91_WIDGET_ID = process.env.MSG91_WIDGET_ID || '366b65685947363636393032';
+
+app.post('/api/otp/verify-access-token', async (req, res) => {
+  const { accessToken } = req.body;
+  const token = accessToken || req.body['access-token'];
+  if (!token) {
+    return res.status(400).json({ error: 'Access token required' });
+  }
+
+  try {
+    const apiRes = await fetch('https://control.msg91.com/api/v5/widget/verifyAccessToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        authkey: MSG91_AUTH_KEY,
+        'access-token': token
+      })
+    });
+    const data = await apiRes.json();
+    return res.json(data);
+  } catch (err) {
+    console.error('MSG91 verifyAccessToken error:', err);
+    return res.status(500).json({ error: 'Failed to verify access token' });
+  }
+});
 
 app.post('/api/otp/send', async (req, res) => {
   const { phone, otp } = req.body;
