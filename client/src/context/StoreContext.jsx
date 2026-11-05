@@ -1020,7 +1020,7 @@ export function StoreProvider({ children }) {
   const isFetchingCatalogRef = useRef(false);
 
   const applyRemoteOffers = (rawOffers) => {
-    const isRecentOfferWrite = window.__gkLastOfferWrite && (Date.now() - window.__gkLastOfferWrite < 15000);
+    const isRecentOfferWrite = window.__gkLastOfferWrite && (Date.now() - window.__gkLastOfferWrite < 2500);
     if (isRecentOfferWrite) return;
     // If fetch failed or network returned null/undefined, keep current state (never wipe on error)
     if (rawOffers === null || rawOffers === undefined) return;
@@ -1028,49 +1028,13 @@ export function StoreProvider({ children }) {
     const remoteList = normalizeFirebaseList(rawOffers);
     if (!Array.isArray(remoteList)) return;
 
-    // Check local storage for existing valid offers
-    let localList = [];
-    try {
-      const saved = localStorage.getItem('gk_offers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) localList = parsed;
-      }
-    } catch {}
-
-    // Check if user explicitly cleared/deleted all offers recently
-    let wasExplicitlyCleared = false;
-    try {
-      const lastClearStr = localStorage.getItem('gk_last_offer_clear');
-      if (lastClearStr && (Date.now() - Number(lastClearStr) < 86400000)) {
-        wasExplicitlyCleared = true;
-      }
-    } catch {}
-    if (window.__gkLastOfferClear && (Date.now() - window.__gkLastOfferClear < 86400000)) {
-      wasExplicitlyCleared = true;
-    }
-
-    if (remoteList.length > 0) {
-      setOffers(remoteList);
-      try { localStorage.setItem('gk_offers', JSON.stringify(remoteList)); } catch {}
-      return;
-    }
-
-    // Remote is empty ([])
-    if (localList.length > 0 && !wasExplicitlyCleared) {
-      // Auto-heal remote with local offers so valid offers never get wiped out by remote delay
-      setOffers(localList);
-      syncToFirebase('offers', localList);
-      return;
-    }
-
-    // Legitimate empty (admin cleared all offers)
-    setOffers([]);
-    try { localStorage.setItem('gk_offers', JSON.stringify([])); } catch {}
+    // Supabase is single source of truth - set remote offers directly
+    setOffers(remoteList);
+    try { localStorage.setItem('gk_offers', JSON.stringify(remoteList)); } catch {}
   };
 
   const applyRemoteMilestones = (rawMilestones) => {
-    const isRecentMilestoneWrite = window.__gkLastMilestoneWrite && (Date.now() - window.__gkLastMilestoneWrite < 15000);
+    const isRecentMilestoneWrite = window.__gkLastMilestoneWrite && (Date.now() - window.__gkLastMilestoneWrite < 2500);
     if (isRecentMilestoneWrite) return;
     // If fetch failed or network returned null/undefined, keep current state (never wipe on error)
     if (rawMilestones === null || rawMilestones === undefined) return;
@@ -1078,44 +1042,9 @@ export function StoreProvider({ children }) {
     const remoteList = normalizeFirebaseList(rawMilestones);
     if (!Array.isArray(remoteList)) return;
 
-    let localList = [];
-    try {
-      const saved = localStorage.getItem('gk_milestone_gifts');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) localList = parsed;
-      }
-    } catch {}
-
-    let wasExplicitlyCleared = false;
-    try {
-      const lastClearStr = localStorage.getItem('gk_last_milestone_clear');
-      if (lastClearStr && (Date.now() - Number(lastClearStr) < 86400000)) {
-        wasExplicitlyCleared = true;
-      }
-    } catch {}
-    if (window.__gkLastMilestoneClear && (Date.now() - window.__gkLastMilestoneClear < 86400000)) {
-      wasExplicitlyCleared = true;
-    }
-
-    if (remoteList.length > 0) {
-      remoteList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-      setMilestoneGifts(remoteList);
-      try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(remoteList)); } catch {}
-      return;
-    }
-
-    // Remote is empty ([])
-    if (localList.length > 0 && !wasExplicitlyCleared) {
-      localList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-      setMilestoneGifts(localList);
-      syncToFirebase('milestone_gifts', localList);
-      return;
-    }
-
-    // Legitimate empty
-    setMilestoneGifts([]);
-    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify([])); } catch {}
+    remoteList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+    setMilestoneGifts(remoteList);
+    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(remoteList)); } catch {}
   };
 
   useEffect(() => {

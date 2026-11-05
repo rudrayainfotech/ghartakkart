@@ -3172,10 +3172,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     const nextOffers = (offers || []).filter(o => o.id !== offerId);
     setOffers(nextOffers);
     try { localStorage.setItem('gk_offers', JSON.stringify(nextOffers)); } catch {}
-    if (nextOffers.length === 0) {
-      window.__gkLastOfferClear = Date.now();
-      try { localStorage.setItem('gk_last_offer_clear', Date.now().toString()); } catch {}
-    }
     await syncToFirebase('offers', nextOffers);
   };
 
@@ -3192,8 +3188,6 @@ Thank you for shopping with ${storeName}! 🙏`;
 
   const handleRestoreDefaultOffers = async () => {
     if (!window.confirm('Restore standard default offers and coupons?')) return;
-    try { localStorage.removeItem('gk_last_offer_clear'); } catch {}
-    window.__gkLastOfferClear = null;
     const userRestored = DEFAULT_OFFERS.map(o => ({ ...o, userCreated: true, created_at: new Date().toISOString() }));
     setOffers(userRestored);
     try { localStorage.setItem('gk_offers', JSON.stringify(userRestored)); } catch {}
@@ -3437,8 +3431,6 @@ Thank you for shopping with ${storeName}! 🙏`;
   };
 
   const handleRestoreDefaultMilestones = async () => {
-    try { localStorage.removeItem('gk_last_milestone_clear'); } catch {}
-    window.__gkLastMilestoneClear = null;
     const restored = DEFAULT_MILESTONE_GIFTS.map(m => ({
       ...m,
       userCreated: true,
@@ -3455,10 +3447,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     const nextMilestones = (milestoneGifts || []).filter(m => m.id !== tierId);
     setMilestoneGifts(nextMilestones);
     try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(nextMilestones)); } catch {}
-    if (nextMilestones.length === 0) {
-      window.__gkLastMilestoneClear = Date.now();
-      try { localStorage.setItem('gk_last_milestone_clear', Date.now().toString()); } catch {}
-    }
     await syncToFirebase('milestone_gifts', nextMilestones);
   };
 
