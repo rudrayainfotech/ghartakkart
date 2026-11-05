@@ -3172,6 +3172,10 @@ Thank you for shopping with ${storeName}! 🙏`;
     const nextOffers = (offers || []).filter(o => o.id !== offerId);
     setOffers(nextOffers);
     try { localStorage.setItem('gk_offers', JSON.stringify(nextOffers)); } catch {}
+    if (nextOffers.length === 0) {
+      window.__gkLastOfferClear = Date.now();
+      try { localStorage.setItem('gk_last_offer_clear', Date.now().toString()); } catch {}
+    }
     await syncToFirebase('offers', nextOffers);
   };
 
@@ -3188,6 +3192,8 @@ Thank you for shopping with ${storeName}! 🙏`;
 
   const handleRestoreDefaultOffers = async () => {
     if (!window.confirm('Restore standard default offers and coupons?')) return;
+    try { localStorage.removeItem('gk_last_offer_clear'); } catch {}
+    window.__gkLastOfferClear = null;
     const userRestored = DEFAULT_OFFERS.map(o => ({ ...o, userCreated: true, created_at: new Date().toISOString() }));
     setOffers(userRestored);
     try { localStorage.setItem('gk_offers', JSON.stringify(userRestored)); } catch {}
@@ -3431,6 +3437,8 @@ Thank you for shopping with ${storeName}! 🙏`;
   };
 
   const handleRestoreDefaultMilestones = async () => {
+    try { localStorage.removeItem('gk_last_milestone_clear'); } catch {}
+    window.__gkLastMilestoneClear = null;
     const restored = DEFAULT_MILESTONE_GIFTS.map(m => ({
       ...m,
       userCreated: true,
@@ -3447,6 +3455,10 @@ Thank you for shopping with ${storeName}! 🙏`;
     const nextMilestones = (milestoneGifts || []).filter(m => m.id !== tierId);
     setMilestoneGifts(nextMilestones);
     try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(nextMilestones)); } catch {}
+    if (nextMilestones.length === 0) {
+      window.__gkLastMilestoneClear = Date.now();
+      try { localStorage.setItem('gk_last_milestone_clear', Date.now().toString()); } catch {}
+    }
     await syncToFirebase('milestone_gifts', nextMilestones);
   };
 
@@ -8261,6 +8273,197 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
               </div>
             </div>
 
+            {/* Filter and Search Bar */}
+            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="relative flex-1 max-w-md">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={offerSearch}
+                  onChange={(e) => setOfferSearch(e.target.value)}
+                  placeholder="Search offers by title, code, discount tag..."
+                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-300 focus:outline-none focus:border-rose-500 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5 overflow-x-auto">
+                {[
+                  { id: 'all', label: `All (${(offers || []).length})` },
+                  { id: 'live', label: `Live Now 🔥 (${(offers || []).filter(o => o.active !== false).length})` },
+                  { id: 'paused', label: `Paused (${(offers || []).filter(o => o.active === false).length})` }
+                ].map(f => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setOfferFilter(f.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
+                      offerFilter === f.id
+                        ? 'bg-rose-600 text-white shadow-sm'
+                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Offers Cards Grid */}
+            {filteredOffers.length === 0 ? (
+              <div className="bg-white p-12 rounded-2xl border border-gray-200 text-center space-y-3">
+                <div className="w-14 h-14 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center font-bold">
+                  <Flame className="w-7 h-7" />
+                </div>
+                <h4 className="font-extrabold text-sm text-gray-900">No Offers Found</h4>
+                <p className="text-xs text-gray-500 max-w-sm mx-auto">
+                  {offerSearch || offerFilter !== 'all'
+                    ? 'No offers match your current filter or search query.'
+                    : 'You have not created any promotional offers or banners yet.'}
+                </p>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleOpenCreateOffer}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-rose-700 transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create First Offer</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRestoreDefaultOffers}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  >
+                    <Sparkles className="w-4 h-4 text-rose-600" />
+                    <span>Restore Standard Offers</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {filteredOffers.map(offer => {
+                  const isLive = offer.active !== false;
+                  const targetCat = categories.find(c => c.id === offer.category_id);
+                  return (
+                    <div
+                      key={offer.id}
+                      className={`bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col ${
+                        isLive ? 'border-gray-200' : 'border-gray-200 opacity-80'
+                      }`}
+                    >
+                      {/* Card Banner Image Preview */}
+                      <div className="relative h-44 w-full bg-gray-100 overflow-hidden group">
+                        <img
+                          src={offer.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80'}
+                          alt={offer.title}
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80';
+                          }}
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+                        {/* Top Badges */}
+                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
+                          {offer.discount_tag ? (
+                            <span className="bg-rose-600 text-white text-[10px] font-black tracking-wider px-2.5 py-1 rounded-full uppercase shadow-md flex items-center gap-1">
+                              <Tag className="w-3 h-3" />
+                              {offer.discount_tag}
+                            </span>
+                          ) : <span />}
+
+                          <span
+                            className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 ${
+                              isLive
+                                ? 'bg-emerald-500 text-white animate-pulse'
+                                : 'bg-gray-800 text-gray-300'
+                            }`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-white' : 'bg-gray-400'}`} />
+                            {isLive ? 'LIVE NOW 🔥' : 'PAUSED'}
+                          </span>
+                        </div>
+
+                        {/* Bottom image overlay details */}
+                        <div className="absolute bottom-3 left-3 right-3 text-white">
+                          <p className="font-black text-base drop-shadow-md line-clamp-1">{offer.title}</p>
+                          {offer.subtitle && (
+                            <p className="text-xs text-white/90 drop-shadow-md line-clamp-1 font-medium">{offer.subtitle}</p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Card Body Details */}
+                      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
+                        <div className="space-y-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {offer.code && (
+                              <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 font-mono text-xs font-bold px-2 py-0.5 rounded-md">
+                                <Tag className="w-3 h-3 text-amber-600" />
+                                <span>Code: <strong>{offer.code}</strong></span>
+                              </div>
+                            )}
+
+                            <span className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-medium">
+                              {targetCat ? `Category: ${targetCat.name}` : 'All Categories'}
+                            </span>
+                          </div>
+
+                          <div className="text-xs text-gray-600 space-y-1">
+                            {offer.min_order > 0 ? (
+                              <p className="text-gray-500">
+                                🛒 Min order value: <strong className="text-gray-800">₹{offer.min_order}</strong>
+                              </p>
+                            ) : (
+                              <p className="text-emerald-700 font-medium">🛒 Applicable on any order value</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Card Action Controls */}
+                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                          {/* Live Toggle Button */}
+                          <button
+                            type="button"
+                            onClick={() => handleToggleOfferLive(offer.id)}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
+                              isLive
+                                ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
+                                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
+                            }`}
+                            title={isLive ? 'Pause this offer' : 'Go live with this offer'}
+                          >
+                            {isLive ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-emerald-700" />}
+                            <span>{isLive ? 'Pause Offer' : 'Go Live 🔥'}</span>
+                          </button>
+
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditOffer(offer)}
+                              className="p-1.5 rounded-lg text-gray-600 hover:text-brand-600 hover:bg-gray-100 transition-colors"
+                              title="Edit Offer"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteOffer(offer.id)}
+                              className="p-1.5 rounded-lg text-gray-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                              title="Delete Offer"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* ================= ORDER MILESTONE FREE GIFT TIERS (₹149, ₹249, ₹349+ — 3 ITEMS EACH) ================= */}
             <div className="bg-gradient-to-br from-emerald-50 via-white to-teal-50/50 rounded-2xl border-2 border-emerald-200 shadow-sm overflow-hidden">
               <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -8463,197 +8666,6 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                 )}
               </div>
             </div>
-
-            {/* Filter and Search Bar */}
-            <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="relative flex-1 max-w-md">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  value={offerSearch}
-                  onChange={(e) => setOfferSearch(e.target.value)}
-                  placeholder="Search offers by title, code, discount tag..."
-                  className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-300 focus:outline-none focus:border-rose-500 font-medium"
-                />
-              </div>
-
-              <div className="flex items-center gap-1.5 overflow-x-auto">
-                {[
-                  { id: 'all', label: `All (${(offers || []).length})` },
-                  { id: 'live', label: `Live Now 🔥 (${(offers || []).filter(o => o.active !== false).length})` },
-                  { id: 'paused', label: `Paused (${(offers || []).filter(o => o.active === false).length})` }
-                ].map(f => (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => setOfferFilter(f.id)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap ${
-                      offerFilter === f.id
-                        ? 'bg-rose-600 text-white shadow-sm'
-                        : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                    }`}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Offers Cards Grid */}
-            {filteredOffers.length === 0 ? (
-              <div className="bg-white p-12 rounded-2xl border border-gray-200 text-center space-y-3">
-                <div className="w-14 h-14 mx-auto rounded-full bg-rose-50 text-rose-500 flex items-center justify-center font-bold">
-                  <Flame className="w-7 h-7" />
-                </div>
-                <h4 className="font-extrabold text-sm text-gray-900">No Offers Found</h4>
-                <p className="text-xs text-gray-500 max-w-sm mx-auto">
-                  {offerSearch || offerFilter !== 'all'
-                    ? 'No offers match your current filter or search query.'
-                    : 'You have not created any promotional offers or banners yet.'}
-                </p>
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateOffer}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 text-white rounded-xl text-xs font-bold shadow-md hover:bg-rose-700 transition-all cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Create First Offer</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleRestoreDefaultOffers}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                  >
-                    <Sparkles className="w-4 h-4 text-rose-600" />
-                    <span>Restore Standard Offers</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {filteredOffers.map(offer => {
-                  const isLive = offer.active !== false;
-                  const targetCat = categories.find(c => c.id === offer.category_id);
-                  return (
-                    <div
-                      key={offer.id}
-                      className={`bg-white rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col ${
-                        isLive ? 'border-gray-200' : 'border-gray-200 opacity-80'
-                      }`}
-                    >
-                      {/* Card Banner Image Preview */}
-                      <div className="relative h-44 w-full bg-gray-100 overflow-hidden group">
-                        <img
-                          src={offer.image || 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80'}
-                          alt={offer.title}
-                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=800&q=80';
-                          }}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
-
-                        {/* Top Badges */}
-                        <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2">
-                          {offer.discount_tag ? (
-                            <span className="bg-rose-600 text-white text-[10px] font-black tracking-wider px-2.5 py-1 rounded-full uppercase shadow-md flex items-center gap-1">
-                              <Tag className="w-3 h-3" />
-                              {offer.discount_tag}
-                            </span>
-                          ) : <span />}
-
-                          <span
-                            className={`text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md flex items-center gap-1 ${
-                              isLive
-                                ? 'bg-emerald-500 text-white animate-pulse'
-                                : 'bg-gray-800 text-gray-300'
-                            }`}
-                          >
-                            <span className={`w-1.5 h-1.5 rounded-full ${isLive ? 'bg-white' : 'bg-gray-400'}`} />
-                            {isLive ? 'LIVE NOW 🔥' : 'PAUSED'}
-                          </span>
-                        </div>
-
-                        {/* Bottom image overlay details */}
-                        <div className="absolute bottom-3 left-3 right-3 text-white">
-                          <p className="font-black text-base drop-shadow-md line-clamp-1">{offer.title}</p>
-                          {offer.subtitle && (
-                            <p className="text-xs text-white/90 drop-shadow-md line-clamp-1 font-medium">{offer.subtitle}</p>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Card Body Details */}
-                      <div className="p-4 flex-1 flex flex-col justify-between space-y-3">
-                        <div className="space-y-2">
-                          <div className="flex flex-wrap items-center gap-2">
-                            {offer.code && (
-                              <div className="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 font-mono text-xs font-bold px-2 py-0.5 rounded-md">
-                                <Tag className="w-3 h-3 text-amber-600" />
-                                <span>Code: <strong>{offer.code}</strong></span>
-                              </div>
-                            )}
-
-                            <span className="text-[11px] bg-gray-100 text-gray-700 px-2 py-0.5 rounded-md font-medium">
-                              {targetCat ? `Category: ${targetCat.name}` : 'All Categories'}
-                            </span>
-                          </div>
-
-                          <div className="text-xs text-gray-600 space-y-1">
-                            {offer.min_order > 0 ? (
-                              <p className="text-gray-500">
-                                🛒 Min order value: <strong className="text-gray-800">₹{offer.min_order}</strong>
-                              </p>
-                            ) : (
-                              <p className="text-emerald-700 font-medium">🛒 Applicable on any order value</p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Card Action Controls */}
-                        <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-                          {/* Live Toggle Button */}
-                          <button
-                            type="button"
-                            onClick={() => handleToggleOfferLive(offer.id)}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all ${
-                              isLive
-                                ? 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'
-                                : 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200'
-                            }`}
-                            title={isLive ? 'Pause this offer' : 'Go live with this offer'}
-                          >
-                            {isLive ? <EyeOff className="w-3.5 h-3.5 text-amber-700" /> : <Eye className="w-3.5 h-3.5 text-emerald-700" />}
-                            <span>{isLive ? 'Pause Offer' : 'Go Live 🔥'}</span>
-                          </button>
-
-                          <div className="flex items-center gap-1.5">
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditOffer(offer)}
-                              className="p-1.5 rounded-lg text-gray-600 hover:text-brand-600 hover:bg-gray-100 transition-colors"
-                              title="Edit Offer"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteOffer(offer.id)}
-                              className="p-1.5 rounded-lg text-gray-600 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                              title="Delete Offer"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
