@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playChime } from '../utils/sound.js';
-import { getStoreOperatingStatus } from '../utils/haversine.js';
+import { getStoreOperatingStatus, calculateHaversineDistance } from '../utils/haversine.js';
 import ScratchCard from './ScratchCard.jsx';
 
 export default function CheckoutModal() {
@@ -160,6 +160,15 @@ export default function CheckoutModal() {
   }, [isCheckoutOpen, cartSubtotal, deliveryFee, offers]);
 
   const storeStatus = getStoreOperatingStatus(settings, nowTick);
+
+  // Delivery radius & zone enforcement
+  const maxRadiusKm = Number(settings?.max_radius_km) || 10;
+  const storeLat = Number(settings?.store_lat) || 27.941887;
+  const storeLng = Number(settings?.store_lng) || 77.843715;
+  const userLat = Number(userLocation?.lat) || storeLat;
+  const userLng = Number(userLocation?.lng) || storeLng;
+  const effectiveDistanceKm = calculateHaversineDistance(storeLat, storeLng, userLat, userLng);
+  const isOutOfRadius = effectiveDistanceKm > maxRadiusKm || userLocation?.deliverable === false;
 
   // Milestone Free Gift Selection State (149, 249, 349+ tiers, 3 options per tier)
   const activeMilestones = (milestoneGifts || [])
@@ -384,6 +393,13 @@ export default function CheckoutModal() {
       return;
     }
 
+    if (isOutOfRadius) {
+      alert(`🚫 Delivery Unavailable!\n\nThis address is ${effectiveDistanceKm} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair store.`);
+      setIsSubmitting(false);
+      playChime('alert');
+      return;
+    }
+
     const cleanPhone = (customerPhone || '').replace(/\D/g, '').slice(-10);
     if (cleanPhone.length !== 10) {
       alert('Please enter a valid 10-digit mobile number');
@@ -426,6 +442,14 @@ export default function CheckoutModal() {
 
     const storeOriginLat = Number(settings?.store_lat) || 27.941887;
     const storeOriginLng = Number(settings?.store_lng) || 77.843715;
+    const currentDist = calculateHaversineDistance(storeOriginLat, storeOriginLng, finalLat, finalLng);
+    if (currentDist > maxRadiusKm || userLocation?.deliverable === false) {
+      alert(`🚫 Delivery Unavailable!\n\nYour detected location is ${currentDist} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair store.`);
+      setIsSubmitting(false);
+      playChime('alert');
+      return;
+    }
+
     const generatedOrderId = 'GK-' + Math.floor(1000 + Math.random() * 9000);
     const amountInPaise = Math.max(100, Math.round(Number(netPayable || 0) * 100));
     const rzpKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || settings?.razorpay_key_id || 'rzp_live_To2EZDjW6D4GZW').trim();
@@ -439,7 +463,10 @@ export default function CheckoutModal() {
         body: JSON.stringify({
           amount: amountInPaise,
           currency: 'INR',
-          receipt: generatedOrderId
+          receipt: generatedOrderId,
+          lat: finalLat,
+          lng: finalLng,
+          distance_km: currentDist
         })
       });
 
@@ -451,6 +478,13 @@ export default function CheckoutModal() {
       } else {
         const errJson = await createOrderRes.json().catch(() => ({}));
         console.warn('Backend order creation returned status', createOrderRes.status, errJson);
+        if (createOrderRes.status === 400) {
+          setIsSubmitting(false);
+          setPaymentError(errJson.error || 'Address is outside delivery radius.');
+          alert(`🚫 Order Placement Blocked!\n\n${errJson.error || 'Your address is outside our delivery zone.'}`);
+          playChime('alert');
+          return;
+        }
         if (createOrderRes.status === 401) {
           setIsSubmitting(false);
           setPaymentError('Payment gateway authentication failed. Please verify credentials or choose Cash on Delivery.');
@@ -560,6 +594,13 @@ export default function CheckoutModal() {
       return;
     }
 
+    if (isOutOfRadius) {
+      alert(`🚫 Delivery Unavailable!\n\nThis address is ${effectiveDistanceKm} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair central hub.\n\nPlease choose an address inside Khair (within ${maxRadiusKm} km) to place an order.`);
+      setIsSubmitting(false);
+      playChime('alert');
+      return;
+    }
+
     const cleanPhone = (customerPhone || '').replace(/\D/g, '').slice(-10);
     if (cleanPhone.length !== 10) {
       alert('Please enter a valid 10-digit mobile number');
@@ -590,6 +631,13 @@ export default function CheckoutModal() {
       return;
     }
 
+    if (isOutOfRadius) {
+      alert(`🚫 Delivery Unavailable!\n\nThis address is ${effectiveDistanceKm} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair central hub.\n\nPlease choose an address inside Khair (within ${maxRadiusKm} km) to place an order.`);
+      setIsSubmitting(false);
+      playChime('alert');
+      return;
+    }
+
     if (isBlockedCustomer) {
       alert(`🚫 Order Placement Blocked!\n\nYour mobile number (+91 ${cleanPhone}) has been restricted from placing orders by GharTak Kart store administration.\nReason: ${customerBlockReason}\n\nIf you believe this is an error, please contact store customer care (7017675784).`);
       playChime('alert');
@@ -616,6 +664,14 @@ export default function CheckoutModal() {
 
     const storeOriginLat = extraMeta?.storeLat ?? (Number(settings?.store_lat) || 27.941887);
     const storeOriginLng = extraMeta?.storeLng ?? (Number(settings?.store_lng) || 77.843715);
+    const currentDist = calculateHaversineDistance(storeOriginLat, storeOriginLng, finalLat, finalLng);
+    if (currentDist > maxRadiusKm || userLocation?.deliverable === false) {
+      alert(`🚫 Delivery Unavailable!\n\nYour delivery address is ${currentDist} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair store.`);
+      setIsSubmitting(false);
+      playChime('alert');
+      return;
+    }
+
     const finalMethod = overrideMethod || paymentMethod;
     const isOnline = finalMethod.includes('Razorpay') || finalMethod.includes('Online');
     const finalPaymentStatus = extraMeta?.paymentStatus || (isOnline ? 'Paid' : finalMethod === 'Cash on Delivery' ? 'Pending (COD)' : 'Paid');
@@ -634,6 +690,41 @@ export default function CheckoutModal() {
     const scratchCashbackAmount = earnsScratchCard
       ? (maxCashbackPerOrder > 0 ? Math.min(rawCashback, maxCashbackPerOrder) : rawCashback)
       : 0;
+
+    // Strict Live Milestone Gift Verification directly from Supabase
+    let verifiedMilestoneGift = null;
+    try {
+      const remoteMilestones = await fetchNodeFromSupabase('milestone_gifts');
+      if (Array.isArray(remoteMilestones) && remoteMilestones.length > 0) {
+        const activeRemote = remoteMilestones.filter(m => m && m.active === true);
+        const unlockedRemote = activeRemote
+          .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
+          .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+        if (unlockedRemote.length > 0) {
+          const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
+          const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
+          if (targetTier && targetItem) {
+            verifiedMilestoneGift = {
+              tier_id: targetTier.id,
+              tier_amount: targetTier.min_amount,
+              tier_title: targetTier.title,
+              item_id: targetItem.id,
+              name: targetItem.name,
+              category: targetItem.category || 'Gift',
+              unit: targetItem.unit || '1 Pack',
+              worth: Number(targetItem.worth) || 0,
+              image: targetItem.image || ''
+            };
+          }
+        }
+      } else {
+        // No active milestone gifts exist in Supabase! Wipe any stale local cache
+        try { localStorage.setItem('gk_milestone_gifts', '[]'); } catch {}
+      }
+    } catch (mErr) {
+      console.warn('Could not verify milestone gifts live from Supabase:', mErr);
+      verifiedMilestoneGift = null;
+    }
 
     const orderPayload = {
       id: generatedOrderId,
@@ -666,7 +757,7 @@ export default function CheckoutModal() {
           ? it.images[0]
           : '/product-images/prod-1791723522384.jpg'
       })),
-      distance_km: userLocation.distance_km || 0.5,
+      distance_km: currentDist || userLocation.distance_km || 0.5,
       delivery_slot: deliverySlot,
       payment_method: finalMethod,
       payment_status: finalPaymentStatus,
@@ -679,17 +770,7 @@ export default function CheckoutModal() {
       total: netPayable,
       original_total: grandTotal,
       coupon_code: appliedCoupon ? appliedCoupon.code : null,
-      milestone_gift: chosenMilestoneGiftItem && currentGiftTier ? {
-        tier_id: currentGiftTier.id,
-        tier_amount: currentGiftTier.min_amount,
-        tier_title: currentGiftTier.title,
-        item_id: chosenMilestoneGiftItem.id,
-        name: chosenMilestoneGiftItem.name,
-        category: chosenMilestoneGiftItem.category || 'Gift',
-        unit: chosenMilestoneGiftItem.unit || '1 Pack',
-        worth: Number(chosenMilestoneGiftItem.worth) || 0,
-        image: chosenMilestoneGiftItem.image || ''
-      } : null,
+      milestone_gift: verifiedMilestoneGift,
       earned_stamp: grandTotal >= 250,
       surprise_gift_awarded: (Number(customerUser?.stamps || 0) + (grandTotal >= 250 ? 1 : 0)) >= 10,
       scratch_card: earnsScratchCard ? {
@@ -755,6 +836,13 @@ export default function CheckoutModal() {
       return;
     }
 
+    if (isOutOfRadius) {
+      alert(`🚫 Delivery Unavailable!\n\nThis address is ${effectiveDistanceKm} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair store.`);
+      setIsVerifyingPayment(false);
+      playChime('alert');
+      return;
+    }
+
     if (isBlockedCustomer) {
       alert(`🚫 Order Placement Blocked!\n\nYour mobile number (+91 ${cleanPhone}) has been restricted from placing orders by GharTak Kart store administration.\nReason: ${customerBlockReason}\n\nIf you believe this is an error, please contact store customer care (7017675784).`);
       playChime('alert');
@@ -776,6 +864,14 @@ export default function CheckoutModal() {
     const finalLng = Number(userLocation.lng) || Number(settings?.store_lng) || 77.843715;
     const storeOriginLat = Number(settings?.store_lat) || 27.941887;
     const storeOriginLng = Number(settings?.store_lng) || 77.843715;
+    const currentDist = calculateHaversineDistance(storeOriginLat, storeOriginLng, finalLat, finalLng);
+    if (currentDist > maxRadiusKm || userLocation?.deliverable === false) {
+      alert(`🚫 Delivery Unavailable!\n\nYour detected location is ${currentDist} km away. GharTak Kart delivers strictly within ${maxRadiusKm} km of our Khair store.`);
+      setIsVerifyingPayment(false);
+      playChime('alert');
+      return;
+    }
+
     const generatedOrderId = 'GK-' + Math.floor(1000 + Math.random() * 9000);
     const generatedUtr = upiUtr.trim() || 'UPI-APP-' + Math.floor(100000 + Math.random() * 900000);
     const nowIso = new Date().toISOString();
@@ -792,6 +888,40 @@ export default function CheckoutModal() {
     const scratchCashbackAmount = earnsScratchCard
       ? (maxCashbackPerOrder > 0 ? Math.min(rawCashback, maxCashbackPerOrder) : rawCashback)
       : 0;
+
+    // Strict Live Milestone Gift Verification directly from Supabase
+    let verifiedMilestoneGift = null;
+    try {
+      const remoteMilestones = await fetchNodeFromSupabase('milestone_gifts');
+      if (Array.isArray(remoteMilestones) && remoteMilestones.length > 0) {
+        const activeRemote = remoteMilestones.filter(m => m && m.active === true);
+        const unlockedRemote = activeRemote
+          .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
+          .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+        if (unlockedRemote.length > 0) {
+          const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
+          const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
+          if (targetTier && targetItem) {
+            verifiedMilestoneGift = {
+              tier_id: targetTier.id,
+              tier_amount: targetTier.min_amount,
+              tier_title: targetTier.title,
+              item_id: targetItem.id,
+              name: targetItem.name,
+              category: targetItem.category || 'Gift',
+              unit: targetItem.unit || '1 Pack',
+              worth: Number(targetItem.worth) || 0,
+              image: targetItem.image || ''
+            };
+          }
+        }
+      } else {
+        try { localStorage.setItem('gk_milestone_gifts', '[]'); } catch {}
+      }
+    } catch (mErr) {
+      console.warn('Could not verify milestone gifts live from Supabase:', mErr);
+      verifiedMilestoneGift = null;
+    }
 
     const orderPayload = {
       id: generatedOrderId,
@@ -824,7 +954,7 @@ export default function CheckoutModal() {
           ? it.images[0]
           : '/product-images/prod-1791723522384.jpg'
       })),
-      distance_km: userLocation.distance_km || 0.5,
+      distance_km: currentDist || userLocation.distance_km || 0.5,
       delivery_slot: deliverySlot,
       payment_method: 'UPI',
       payment_status: 'Paid (UPI Received)',
@@ -837,17 +967,7 @@ export default function CheckoutModal() {
       total: netPayable,
       original_total: grandTotal,
       coupon_code: appliedCoupon ? appliedCoupon.code : null,
-      milestone_gift: chosenMilestoneGiftItem && currentGiftTier ? {
-        tier_id: currentGiftTier.id,
-        tier_amount: currentGiftTier.min_amount,
-        tier_title: currentGiftTier.title,
-        item_id: chosenMilestoneGiftItem.id,
-        name: chosenMilestoneGiftItem.name,
-        category: chosenMilestoneGiftItem.category || 'Gift',
-        unit: chosenMilestoneGiftItem.unit || '1 Pack',
-        worth: Number(chosenMilestoneGiftItem.worth) || 0,
-        image: chosenMilestoneGiftItem.image || ''
-      } : null,
+      milestone_gift: verifiedMilestoneGift,
       scratch_card: earnsScratchCard ? {
         id: `sc-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`,
         amount: scratchCashbackAmount,
@@ -1498,6 +1618,23 @@ export default function CheckoutModal() {
                 </div>
               )}
 
+              {/* Out of Delivery Zone Notice */}
+              {isOutOfRadius && (
+                <div className="p-4 bg-rose-50 border-2 border-rose-500 rounded-2xl text-xs text-rose-950 font-semibold space-y-1.5 shadow-sm">
+                  <div className="flex items-center gap-2 text-rose-700 font-extrabold text-sm">
+                    <Ban className="w-5 h-5 shrink-0 text-rose-600" />
+                    <span>🚫 Outside Delivery Zone ({effectiveDistanceKm} km away)</span>
+                  </div>
+                  <p className="text-gray-700 text-xs leading-relaxed">
+                    GharTak Kart delivers strictly within <strong>{maxRadiusKm} km</strong> of our Khair store.
+                    Your selected location is <strong>{effectiveDistanceKm} km</strong> away, which is outside our delivery zone.
+                  </p>
+                  <p className="text-rose-700 font-bold text-[11px]">
+                    👉 Please select or search an address inside Khair (within {maxRadiusKm} km) to proceed.
+                  </p>
+                </div>
+              )}
+
               {/* Delivery Address Review */}
               <div className="bg-brand-50/60 rounded-2xl p-4 border border-brand-200 flex flex-col sm:flex-row items-start gap-3">
                 <div className="w-8 h-8 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0">
@@ -1508,8 +1645,10 @@ export default function CheckoutModal() {
                     <span className="font-bold text-brand-900 text-sm">
                       Deliver to: {userLocation.label || 'Home'}
                     </span>
-                    <span className="bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded text-[10px]">
-                      {userLocation.distance_km} km away
+                    <span className={`font-bold px-2 py-0.5 rounded text-[10px] ${
+                      isOutOfRadius ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-emerald-100 text-emerald-800'
+                    }`}>
+                      {isOutOfRadius ? `🚫 ${effectiveDistanceKm} km (Out of Zone)` : `${effectiveDistanceKm} km away`}
                     </span>
                   </div>
                   <p className="text-gray-700 mt-1 font-medium">{userLocation.addressText}</p>
@@ -2109,6 +2248,13 @@ export default function CheckoutModal() {
                 </div>
               )}
 
+              {isOutOfRadius && (
+                <div className="p-3 bg-rose-50 border border-rose-400 rounded-xl text-xs text-rose-950 font-semibold flex items-start gap-2">
+                  <Ban className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <span>🚫 Delivery Unavailable: This address is {effectiveDistanceKm} km away. We strictly deliver within {maxRadiusKm} km of our Khair store.</span>
+                </div>
+              )}
+
               {/* Total & Submit Button */}
               <div className="pt-3 border-t border-gray-100 flex items-center justify-between gap-4">
                 <div>
@@ -2118,11 +2264,13 @@ export default function CheckoutModal() {
 
                 <button
                   type="submit"
-                  disabled={isSubmitting || !storeStatus.isOpen || isBlockedCustomer}
+                  disabled={isSubmitting || !storeStatus.isOpen || isBlockedCustomer || isOutOfRadius}
                   className="flex-1 py-3.5 px-6 bg-brand-600 hover:bg-brand-700 active:scale-[0.99] disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-extrabold rounded-2xl shadow-lg shadow-brand-600/30 transition-all flex items-center justify-center gap-2 text-xs sm:text-sm cursor-pointer"
                 >
                   {isBlockedCustomer ? (
                     <span className="flex items-center gap-1.5"><Ban className="w-4 h-4" /> Number Restricted</span>
+                  ) : isOutOfRadius ? (
+                    <span className="flex items-center gap-1.5"><Ban className="w-4 h-4" /> 🚫 Out of Delivery Area ({effectiveDistanceKm} km)</span>
                   ) : !storeStatus.isOpen ? (
                     <span>⏰ Orders Only {storeStatus.openFormatted} – {storeStatus.closeFormatted}</span>
                   ) : isSubmitting ? (

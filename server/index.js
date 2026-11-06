@@ -781,12 +781,29 @@ app.post('/api/orders', (req, res) => {
 // STEP 1: BACKEND - Create Order
 app.post('/api/create-order', async (req, res) => {
   try {
-    const { amount, currency = 'INR', receipt } = req.body;
+    const { amount, currency = 'INR', receipt, lat, lng, distance_km } = req.body;
 
     // Validate amount >= 100 paise (₹1.00 minimum)
     if (!amount || Number(amount) < 100) {
       return res.status(400).json({
         error: 'Invalid amount. Minimum amount is 100 paise (₹1.00).'
+      });
+    }
+
+    const storeLat = Number(db.settings?.store_lat) || 27.941887;
+    const storeLng = Number(db.settings?.store_lng) || 77.843715;
+    const maxRadius = Number(db.settings?.max_radius_km) || 10;
+
+    let dist = null;
+    if (lat != null && lng != null) {
+      dist = calculateHaversineDistance(storeLat, storeLng, Number(lat), Number(lng));
+    } else if (distance_km != null) {
+      dist = Number(distance_km);
+    }
+
+    if (dist !== null && dist > maxRadius) {
+      return res.status(400).json({
+        error: `Delivery Unavailable: Location is ${dist} km away. GharTak Kart strictly delivers within ${maxRadius} km of our Khair store.`
       });
     }
 

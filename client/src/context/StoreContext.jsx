@@ -627,7 +627,15 @@ export function StoreProvider({ children }) {
       const saved = localStorage.getItem('gk_milestone_gifts');
       if (saved !== null) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          // Purge stale mock milestone tiers if they were cached previously
+          const isLegacyMock = parsed.some(p => p && typeof p.id === 'string' && p.id.startsWith('milestone-'));
+          if (isLegacyMock) {
+            try { localStorage.setItem('gk_milestone_gifts', '[]'); } catch {}
+            return [];
+          }
+          return parsed;
+        }
       }
       return [];
     } catch {
@@ -1042,9 +1050,10 @@ export function StoreProvider({ children }) {
     const remoteList = normalizeFirebaseList(rawMilestones);
     if (!Array.isArray(remoteList)) return;
 
-    remoteList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-    setMilestoneGifts(remoteList);
-    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(remoteList)); } catch {}
+    const cleanedList = remoteList.filter(m => m && typeof m === 'object');
+    cleanedList.sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+    setMilestoneGifts(cleanedList);
+    try { localStorage.setItem('gk_milestone_gifts', JSON.stringify(cleanedList)); } catch {}
   };
 
   useEffect(() => {
