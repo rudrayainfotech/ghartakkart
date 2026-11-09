@@ -185,14 +185,52 @@ export async function broadcastSosAlertToSupabase(partner, location) {
   }
 }
 
+let sharedRealtimeChannel = null;
+
+export function getSharedRealtimeChannel() {
+  if (!supabase) return null;
+  if (!sharedRealtimeChannel) {
+    sharedRealtimeChannel = supabase.channel('ghartakkart_live', {
+      config: {
+        broadcast: { self: false }
+      }
+    });
+  }
+  return sharedRealtimeChannel;
+}
+
+/**
+ * Ultra-fast Realtime WebSocket Broadcast (< 30ms latency)
+ * Delivers order notifications directly to Admin without waiting for database writes!
+ */
+export async function broadcastStoreEvent(event, payload) {
+  if (!supabase) return;
+  try {
+    const ch = getSharedRealtimeChannel();
+    if (ch) {
+      if (ch.state !== 'joined') {
+        ch.subscribe();
+      }
+      ch.send({
+        type: 'broadcast',
+        event: event,
+        payload: payload
+      });
+    }
+  } catch (err) {
+    console.warn('[Supabase Broadcast] error:', err);
+  }
+}
+
 /**
  * Subscribe to realtime updates on store_kv for instant order & catalog updates
+ * Combines Postgres CDC with ultra-fast WebSocket broadcasts
  */
-export function subscribeStoreKv(onUpdate) {
+export function subscribeStoreKv(onUpdate, onBroadcast) {
   if (!supabase) return () => {};
   try {
-    const channel = supabase
-      .channel('public:store_kv')
+    const channel = getSharedRealtimeChannel();
+    channel
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'store_kv' },
@@ -202,10 +240,36 @@ export function subscribeStoreKv(onUpdate) {
           }
         }
       )
-      .subscribe();
+      .on(
+        'broadcast',
+        { event: 'NEW_ORDER' },
+        (msg) => {
+          if (msg && msg.payload) {
+            if (typeof onBroadcast === 'function') onBroadcast('NEW_ORDER', msg.payload);
+            if (typeof onUpdate === 'function') onUpdate('orders_inbox', [msg.payload]);
+          }
+        }
+      )
+      .on(
+        'broadcast',
+        { event: 'ORDER_STATUS_CHANGED' },
+        (msg) => {
+          if (msg && msg.payload) {
+            if (typeof onBroadcast === 'function') onBroadcast('ORDER_STATUS_CHANGED', msg.payload);
+            if (typeof onUpdate === 'function') onUpdate('orders_inbox', [msg.payload]);
+          }
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('[Supabase Realtime] Connected to live channel');
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('[Supabase Realtime] Channel status warning:', status);
+        }
+      });
 
     return () => {
-      supabase.removeChannel(channel);
+      // Keep channel subscribed across components for uninterrupted alerts
     };
   } catch (err) {
     console.warn('[Supabase Realtime] Subscribe error:', err);

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
-import { fetchNodeFromSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
   X,
@@ -316,10 +316,13 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
       setOrders(mergedOrders);
       try { localStorage.setItem('gk_orders', JSON.stringify(mergedOrders)); } catch {}
 
-      // 3. Fast atomic save to Supabase store_kv
+      // 3. Fast parallel atomic save to Supabase store_kv
       window.__gkLastOrderWrite = Date.now();
-      await syncToFirebase('orders', mergedOrders);
-      await syncToFirebase('orders_inbox', [newOrder]);
+      broadcastStoreEvent('NEW_ORDER', newOrder);
+      await Promise.all([
+        syncToFirebase('orders', mergedOrders),
+        syncToFirebase('orders_inbox', [newOrder])
+      ]);
 
       // Background stock patch in Supabase
       (async () => {

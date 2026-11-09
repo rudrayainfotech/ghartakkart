@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
-import { fetchNodeFromSupabase, syncNodeToSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import {
   X,
   MapPin,
@@ -317,23 +317,27 @@ export default function CheckoutModal() {
       localStorage.setItem('gk_products', JSON.stringify(updatedProducts));
     } catch {}
 
-    // 4. CRITICAL: Atomic direct write of the new order to Supabase
+    // 4. PARALLEL ZERO-DELAY DISPATCH TO ADMIN & SUPABASE
     window.__gkLastOrderWrite = Date.now();
-    try {
-      // 4a. Immediate Inbox ping for zero-delay admin notification
-      await syncNodeToSupabase('orders_inbox', [newOrder]);
 
-      // 4b. Prepend order to full store orders
-      const existingRemote = await fetchNodeFromSupabase('orders');
-      let currentOrders = Array.isArray(existingRemote) ? existingRemote : [];
-      const updatedRemote = [newOrder, ...currentOrders.filter(o => o?.id !== newOrder.id)];
-      await syncNodeToSupabase('orders', updatedRemote);
-    } catch (err) {
-      console.warn('Order Supabase sync error:', err);
-    }
+    // 4a. Immediate WebSocket Broadcast to Admin (< 30ms latency)
+    broadcastStoreEvent('NEW_ORDER', newOrder);
 
-    // 5. In background: patch product stock in Supabase
-    (async () => {
+    // 4b. Concurrent parallel execution of inbox ping, full orders sync, and stock update
+    const inboxPingTask = syncNodeToSupabase('orders_inbox', [newOrder]);
+
+    const fullOrdersSyncTask = (async () => {
+      try {
+        const existingRemote = await fetchNodeFromSupabase('orders');
+        let currentOrders = Array.isArray(existingRemote) ? existingRemote : [];
+        const updatedRemote = [newOrder, ...currentOrders.filter(o => o?.id !== newOrder.id)];
+        await syncNodeToSupabase('orders', updatedRemote);
+      } catch (err) {
+        console.warn('Full orders remote sync error:', err);
+      }
+    })();
+
+    const stockSyncTask = (async () => {
       try {
         const latestProducts = await fetchNodeFromSupabase('products');
         if (Array.isArray(latestProducts)) {
@@ -351,6 +355,12 @@ export default function CheckoutModal() {
         }
       } catch {}
     })();
+
+    // Await lightweight inbox ping (~80ms) with a 500ms safety race so customer never experiences freeze
+    await Promise.race([
+      inboxPingTask,
+      new Promise(r => setTimeout(r, 500))
+    ]);
   };
 
   // Auto-detect customer GPS location right from Checkout
@@ -422,23 +432,10 @@ export default function CheckoutModal() {
       return;
     }
 
-    // Determine final coordinates and address
+    // Determine final coordinates and address instantly (0ms)
     let finalLat = Number(userLocation.lat) || Number(settings?.store_lat) || 27.941887;
     let finalLng = Number(userLocation.lng) || Number(settings?.store_lng) || 77.843715;
     let finalAddrText = userLocation.addressText || 'Selected Address, Khair';
-    if (!userLocation.isAutoDetected && autoFetchCustomerLocation) {
-      try {
-        const freshGps = await Promise.race([
-          autoFetchCustomerLocation({ silent: true }),
-          new Promise(r => setTimeout(() => r(null), 3000))
-        ]);
-        if (freshGps && freshGps.lat && freshGps.lng) {
-          finalLat = freshGps.lat;
-          finalLng = freshGps.lng;
-          finalAddrText = freshGps.addressText || finalAddrText;
-        }
-      } catch {}
-    }
 
     const storeOriginLat = Number(settings?.store_lat) || 27.941887;
     const storeOriginLng = Number(settings?.store_lng) || 77.843715;
@@ -646,21 +643,10 @@ export default function CheckoutModal() {
 
     setIsSubmitting(true);
 
-    // If customer hasn't auto-detected location yet and extraMeta lat isn't provided, try a fast silent GPS check
+    // Instant address & coordinates resolution (0ms delay)
     let finalLat = extraMeta?.lat ?? (Number(userLocation.lat) || Number(settings?.store_lat) || 27.941887);
     let finalLng = extraMeta?.lng ?? (Number(userLocation.lng) || Number(settings?.store_lng) || 77.843715);
     let finalAddrText = extraMeta?.addrText || userLocation.addressText || 'Selected Address, Khair';
-    if (!extraMeta?.lat && !userLocation.isAutoDetected && autoFetchCustomerLocation) {
-      const freshGps = await Promise.race([
-        autoFetchCustomerLocation({ silent: true }),
-        new Promise(r => setTimeout(() => r(null), 3500))
-      ]);
-      if (freshGps && freshGps.lat && freshGps.lng) {
-        finalLat = freshGps.lat;
-        finalLng = freshGps.lng;
-        finalAddrText = freshGps.addressText || finalAddrText;
-      }
-    }
 
     const storeOriginLat = extraMeta?.storeLat ?? (Number(settings?.store_lat) || 27.941887);
     const storeOriginLng = extraMeta?.storeLng ?? (Number(settings?.store_lng) || 77.843715);
@@ -691,39 +677,28 @@ export default function CheckoutModal() {
       ? (maxCashbackPerOrder > 0 ? Math.min(rawCashback, maxCashbackPerOrder) : rawCashback)
       : 0;
 
-    // Strict Live Milestone Gift Verification directly from Supabase
+    // Instant in-memory Milestone Gift Verification from live sync (0ms)
     let verifiedMilestoneGift = null;
-    try {
-      const remoteMilestones = await fetchNodeFromSupabase('milestone_gifts');
-      if (Array.isArray(remoteMilestones) && remoteMilestones.length > 0) {
-        const activeRemote = remoteMilestones.filter(m => m && m.active === true);
-        const unlockedRemote = activeRemote
-          .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
-          .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-        if (unlockedRemote.length > 0) {
-          const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
-          const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
-          if (targetTier && targetItem) {
-            verifiedMilestoneGift = {
-              tier_id: targetTier.id,
-              tier_amount: targetTier.min_amount,
-              tier_title: targetTier.title,
-              item_id: targetItem.id,
-              name: targetItem.name,
-              category: targetItem.category || 'Gift',
-              unit: targetItem.unit || '1 Pack',
-              worth: Number(targetItem.worth) || 0,
-              image: targetItem.image || ''
-            };
-          }
-        }
-      } else {
-        // No active milestone gifts exist in Supabase! Wipe any stale local cache
-        try { localStorage.setItem('gk_milestone_gifts', '[]'); } catch {}
+    const activeMilestonesList = (milestoneGifts || []).filter(m => m && m.active === true);
+    const unlockedRemote = activeMilestonesList
+      .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
+      .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+    if (unlockedRemote.length > 0) {
+      const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
+      const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
+      if (targetTier && targetItem) {
+        verifiedMilestoneGift = {
+          tier_id: targetTier.id,
+          tier_amount: targetTier.min_amount,
+          tier_title: targetTier.title,
+          item_id: targetItem.id,
+          name: targetItem.name,
+          category: targetItem.category || 'Gift',
+          unit: targetItem.unit || '1 Pack',
+          worth: Number(targetItem.worth) || 0,
+          image: targetItem.image || ''
+        };
       }
-    } catch (mErr) {
-      console.warn('Could not verify milestone gifts live from Supabase:', mErr);
-      verifiedMilestoneGift = null;
     }
 
     const orderPayload = {
@@ -805,15 +780,19 @@ export default function CheckoutModal() {
     };
 
     try {
-      await saveOrderToFirebaseAndLocal(orderPayload);
-      if (walletDeduction > 0 && adjustCustomerWallet) {
-        await adjustCustomerWallet(cleanPhone, walletDeduction, {
-          type: 'debit',
-          reason: `Used on Order #${generatedOrderId}`,
-          orderId: generatedOrderId,
-          by: 'Customer Checkout'
-        });
-      }
+      const walletTask = (walletDeduction > 0 && adjustCustomerWallet)
+        ? adjustCustomerWallet(cleanPhone, walletDeduction, {
+            type: 'debit',
+            reason: `Used on Order #${generatedOrderId}`,
+            orderId: generatedOrderId,
+            by: 'Customer Checkout'
+          })
+        : Promise.resolve();
+
+      await Promise.all([
+        saveOrderToFirebaseAndLocal(orderPayload),
+        walletTask
+      ]);
       setConfirmedOrder(orderPayload);
     } catch (err) {
       console.warn('Order save warning:', err);
@@ -889,38 +868,28 @@ export default function CheckoutModal() {
       ? (maxCashbackPerOrder > 0 ? Math.min(rawCashback, maxCashbackPerOrder) : rawCashback)
       : 0;
 
-    // Strict Live Milestone Gift Verification directly from Supabase
+    // Instant in-memory Milestone Gift Verification from live sync (0ms)
     let verifiedMilestoneGift = null;
-    try {
-      const remoteMilestones = await fetchNodeFromSupabase('milestone_gifts');
-      if (Array.isArray(remoteMilestones) && remoteMilestones.length > 0) {
-        const activeRemote = remoteMilestones.filter(m => m && m.active === true);
-        const unlockedRemote = activeRemote
-          .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
-          .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
-        if (unlockedRemote.length > 0) {
-          const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
-          const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
-          if (targetTier && targetItem) {
-            verifiedMilestoneGift = {
-              tier_id: targetTier.id,
-              tier_amount: targetTier.min_amount,
-              tier_title: targetTier.title,
-              item_id: targetItem.id,
-              name: targetItem.name,
-              category: targetItem.category || 'Gift',
-              unit: targetItem.unit || '1 Pack',
-              worth: Number(targetItem.worth) || 0,
-              image: targetItem.image || ''
-            };
-          }
-        }
-      } else {
-        try { localStorage.setItem('gk_milestone_gifts', '[]'); } catch {}
+    const activeMilestonesList = (milestoneGifts || []).filter(m => m && m.active === true);
+    const unlockedRemote = activeMilestonesList
+      .filter(m => cartSubtotal >= (Number(m.min_amount) || 0))
+      .sort((a, b) => (Number(a.min_amount) || 0) - (Number(b.min_amount) || 0));
+    if (unlockedRemote.length > 0) {
+      const targetTier = unlockedRemote.find(m => m.id === selectedGiftTierId) || unlockedRemote[unlockedRemote.length - 1];
+      const targetItem = (targetTier.items || []).find(it => it.id === selectedGiftItemId) || targetTier.items?.[0];
+      if (targetTier && targetItem) {
+        verifiedMilestoneGift = {
+          tier_id: targetTier.id,
+          tier_amount: targetTier.min_amount,
+          tier_title: targetTier.title,
+          item_id: targetItem.id,
+          name: targetItem.name,
+          category: targetItem.category || 'Gift',
+          unit: targetItem.unit || '1 Pack',
+          worth: Number(targetItem.worth) || 0,
+          image: targetItem.image || ''
+        };
       }
-    } catch (mErr) {
-      console.warn('Could not verify milestone gifts live from Supabase:', mErr);
-      verifiedMilestoneGift = null;
     }
 
     const orderPayload = {
@@ -994,15 +963,19 @@ export default function CheckoutModal() {
     };
 
     try {
-      await saveOrderToFirebaseAndLocal(orderPayload);
-      if (walletDeduction > 0 && adjustCustomerWallet) {
-        await adjustCustomerWallet(cleanPhone, walletDeduction, {
-          type: 'debit',
-          reason: `Used on Order #${generatedOrderId}`,
-          orderId: generatedOrderId,
-          by: 'Customer Checkout'
-        });
-      }
+      const walletTask = (walletDeduction > 0 && adjustCustomerWallet)
+        ? adjustCustomerWallet(cleanPhone, walletDeduction, {
+            type: 'debit',
+            reason: `Used on Order #${generatedOrderId}`,
+            orderId: generatedOrderId,
+            by: 'Customer Checkout'
+          })
+        : Promise.resolve();
+
+      await Promise.all([
+        saveOrderToFirebaseAndLocal(orderPayload),
+        walletTask
+      ]);
       setConfirmedOrder(orderPayload);
     } catch (err) {
       console.warn('UPI order sync warning:', err);

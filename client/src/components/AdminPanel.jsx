@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS } from '../context/StoreContext.jsx';
-import { fetchNodeFromSupabase, syncNodeToSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
   isNotificationSupported,
@@ -2014,6 +2014,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();
+    const updatedOrder = updatedList.find(o => o.id === orderId);
+    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
   };
 
@@ -2079,6 +2081,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();
+    const updatedOrder = updatedList.find(o => o.id === orderId);
+    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
   };
 
@@ -2221,6 +2225,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();
+    const updatedOrder = updatedList.find(o => o.id === orderId);
+    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
     alert(`✅ Vendor "${finalVendorName || 'Cleared'}" saved for Order #${orderId}!`);
   };
@@ -2397,6 +2403,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();
+    const updatedOrder = updatedList.find(o => o.id === orderId);
+    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
   };
 
@@ -2619,6 +2627,8 @@ Thank you for shopping with ${storeName}! 🙏`;
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();
+    const updatedOrder = updatedList.find(o => o.id === orderId);
+    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
 
     alert(`✅ Order #${orderId} successfully updated!`);

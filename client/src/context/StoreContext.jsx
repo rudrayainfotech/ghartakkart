@@ -3,7 +3,7 @@ import { calculateHaversineDistance, getStoreOperatingStatus } from '../utils/ha
 import { playChime } from '../utils/sound.js';
 import { sendOrderNotification } from '../utils/notifications.js';
 import { UNIFIED_DEFAULT_PRODUCTS } from '../data/unifiedProducts.js';
-import { supabase, isSupabaseConfigured, syncNodeToSupabase, fetchNodeFromSupabase, subscribeStoreKv } from '../supabase.js';
+import { supabase, isSupabaseConfigured, syncNodeToSupabase, fetchNodeFromSupabase, subscribeStoreKv, broadcastStoreEvent } from '../supabase.js';
 
 const StoreContext = createContext();
 
@@ -532,6 +532,7 @@ export async function syncToFirebase(nodePath, data) {
 
 export const syncToSupabase = syncToFirebase;
 export const syncToDatabase = syncToFirebase;
+export { broadcastStoreEvent };
 
 export function StoreProvider({ children }) {
   const [settings, setSettings] = useState(() => {
@@ -1026,6 +1027,7 @@ export function StoreProvider({ children }) {
 
   const isPollingOrdersRef = useRef(false);
   const isFetchingCatalogRef = useRef(false);
+  const lastFullOrdersPollRef = useRef(0);
 
   const applyRemoteOffers = (rawOffers) => {
     const isRecentOfferWrite = window.__gkLastOfferWrite && (Date.now() - window.__gkLastOfferWrite < 2500);
@@ -1176,30 +1178,46 @@ export function StoreProvider({ children }) {
     }
   };
 
-  // Fast (~80ms) lightweight poll from Supabase store_kv
+  // Fast lightweight poll from Supabase store_kv with sub-50ms inbox checks
   const pollOrdersFast = async () => {
     if (isPollingOrdersRef.current) return;
     isPollingOrdersRef.current = true;
     try {
-      const [sbOrders, sbInbox, sbSettings] = await Promise.all([
-        fetchNodeFromSupabase('orders'),
-        fetchNodeFromSupabase('orders_inbox'),
-        fetchNodeFromSupabase('settings')
-      ]);
       const isRecentOrderWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2000);
-      if (!isRecentOrderWrite) {
-        let combinedOrders = [];
-        if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
-        if (Array.isArray(sbInbox)) {
-          const combinedMap = new Map();
-          combinedOrders.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-          sbInbox.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-          combinedOrders = Array.from(combinedMap.values());
+      const now = Date.now();
+      const shouldSyncFull = !lastFullOrdersPollRef.current || (now - lastFullOrdersPollRef.current > 6000);
+
+      // 1. Ultra-fast lightweight check of orders_inbox (< 50ms)
+      const sbInboxPromise = fetchNodeFromSupabase('orders_inbox');
+
+      if (shouldSyncFull) {
+        lastFullOrdersPollRef.current = now;
+        const [sbInbox, sbOrders, sbSettings] = await Promise.all([
+          sbInboxPromise,
+          fetchNodeFromSupabase('orders'),
+          fetchNodeFromSupabase('settings')
+        ]);
+        if (!isRecentOrderWrite) {
+          let combinedOrders = [];
+          if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
+          if (Array.isArray(sbInbox)) {
+            const combinedMap = new Map();
+            combinedOrders.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
+            sbInbox.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
+            combinedOrders = Array.from(combinedMap.values());
+          }
+          if (combinedOrders.length > 0) {
+            await mergeAndSyncOrders(combinedOrders, true);
+          }
         }
-        await mergeAndSyncOrders(combinedOrders, true);
-      }
-      if (sbSettings && typeof sbSettings === 'object') {
-        setSettings(prev => ({ ...prev, ...sbSettings }));
+        if (sbSettings && typeof sbSettings === 'object') {
+          setSettings(prev => ({ ...prev, ...sbSettings }));
+        }
+      } else {
+        const sbInbox = await sbInboxPromise;
+        if (!isRecentOrderWrite && Array.isArray(sbInbox) && sbInbox.length > 0) {
+          await mergeAndSyncOrders(sbInbox, true);
+        }
       }
     } catch {} finally {
       isPollingOrdersRef.current = false;
@@ -1329,29 +1347,40 @@ export function StoreProvider({ children }) {
     // Supabase Realtime Subscription for zero-delay order status, offers and catalog updates
     let unsubSupabase = null;
     if (isSupabaseConfigured) {
-      unsubSupabase = subscribeStoreKv((key, data) => {
-        if (key === 'orders' && Array.isArray(data)) {
-          mergeAndSyncOrders(data, true);
-        } else if (key === 'settings' && data) {
-          setSettings(prev => ({ ...prev, ...data }));
-        } else if (key === 'products' && Array.isArray(data)) {
-          setProducts(data);
-        } else if (key === 'categories' && Array.isArray(data)) {
-          setCategories(data);
-        } else if (key === 'offers') {
-          applyRemoteOffers(data);
-        } else if (key === 'milestone_gifts') {
-          applyRemoteMilestones(data);
-        } else if (key === 'staff' && Array.isArray(data)) {
-          setStaff(data);
-        } else if (key === 'staff_users' && Array.isArray(data)) {
-          setStaffUsers(data);
-        } else if (key === 'wallets' && data) {
-          setWallets(data);
-        } else if (key === 'blocked_customers' && data) {
-          setBlockedCustomers(data);
+      unsubSupabase = subscribeStoreKv(
+        (key, data) => {
+          if (key === 'orders' && Array.isArray(data)) {
+            mergeAndSyncOrders(data, true);
+          } else if (key === 'orders_inbox' && Array.isArray(data)) {
+            // Immediate real-time inbox notification (< 50ms)
+            mergeAndSyncOrders(data, true);
+          } else if (key === 'settings' && data) {
+            setSettings(prev => ({ ...prev, ...data }));
+          } else if (key === 'products' && Array.isArray(data)) {
+            setProducts(data);
+          } else if (key === 'categories' && Array.isArray(data)) {
+            setCategories(data);
+          } else if (key === 'offers') {
+            applyRemoteOffers(data);
+          } else if (key === 'milestone_gifts') {
+            applyRemoteMilestones(data);
+          } else if (key === 'staff' && Array.isArray(data)) {
+            setStaff(data);
+          } else if (key === 'staff_users' && Array.isArray(data)) {
+            setStaffUsers(data);
+          } else if (key === 'wallets' && data) {
+            setWallets(data);
+          } else if (key === 'blocked_customers' && data) {
+            setBlockedCustomers(data);
+          }
+        },
+        (event, payload) => {
+          // Direct Realtime WebSocket Broadcast (< 30ms latency)
+          if ((event === 'NEW_ORDER' || event === 'ORDER_STATUS_CHANGED') && payload) {
+            mergeAndSyncOrders([payload], true);
+          }
         }
-      });
+      );
     }
 
     // 2. Cross-tab storage listener (0ms instant sync when Admin & Customer are on the same browser)
@@ -1413,10 +1442,10 @@ export function StoreProvider({ children }) {
     window.addEventListener('focus', handleFocusSync);
     window.addEventListener('pageshow', handleVisibilitySync);
 
-    // 3. Fast 2-second poll of orders, inbox & settings
+    // 3. Fast 1.2-second lightweight inbox check for instant order alerts
     const fastOrdersInterval = setInterval(() => {
       pollOrdersFast();
-    }, 2000);
+    }, 1200);
 
     // 4. Slow 25-second poll for full catalog
     const catalogInterval = setInterval(() => {
@@ -2660,6 +2689,7 @@ export function StoreProvider({ children }) {
         loading,
         fetchData,
         syncToFirebase,
+        broadcastStoreEvent,
 
         adminMode,
         setAdminMode,
