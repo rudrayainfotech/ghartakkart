@@ -323,10 +323,10 @@ export default function CheckoutModal() {
     // 4a. Immediate WebSocket Broadcast to Admin (< 30ms latency)
     broadcastStoreEvent('NEW_ORDER', newOrder);
 
-    // 4b. Concurrent parallel execution of inbox ping, full orders sync, and stock update
-    const inboxPingTask = syncNodeToSupabase('orders_inbox', [newOrder]);
+    // 4b. Concurrent non-blocking background execution of inbox ping, full orders sync, and stock update
+    syncNodeToSupabase('orders_inbox', [newOrder]).catch(e => console.warn('Inbox sync error:', e));
 
-    const fullOrdersSyncTask = (async () => {
+    (async () => {
       try {
         const existingRemote = await fetchNodeFromSupabase('orders');
         let currentOrders = Array.isArray(existingRemote) ? existingRemote : [];
@@ -337,7 +337,7 @@ export default function CheckoutModal() {
       }
     })();
 
-    const stockSyncTask = (async () => {
+    (async () => {
       try {
         const latestProducts = await fetchNodeFromSupabase('products');
         if (Array.isArray(latestProducts)) {
@@ -355,12 +355,6 @@ export default function CheckoutModal() {
         }
       } catch {}
     })();
-
-    // Await lightweight inbox ping (~80ms) with a 500ms safety race so customer never experiences freeze
-    await Promise.race([
-      inboxPingTask,
-      new Promise(r => setTimeout(r, 500))
-    ]);
   };
 
   // Auto-detect customer GPS location right from Checkout
@@ -451,48 +445,6 @@ export default function CheckoutModal() {
     const amountInPaise = Math.max(100, Math.round(Number(netPayable || 0) * 100));
     const rzpKey = (import.meta.env.VITE_RAZORPAY_KEY_ID || settings?.razorpay_key_id || 'rzp_live_To2EZDjW6D4GZW').trim();
 
-    // STEP 1: Call Backend /api/create-order to create order with Razorpay
-    let serverOrderId = null;
-    try {
-      const createOrderRes = await fetch('/api/create-order', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: amountInPaise,
-          currency: 'INR',
-          receipt: generatedOrderId,
-          lat: finalLat,
-          lng: finalLng,
-          distance_km: currentDist
-        })
-      });
-
-      if (createOrderRes.ok) {
-        const orderData = await createOrderRes.json();
-        if (orderData?.order_id) {
-          serverOrderId = orderData.order_id;
-        }
-      } else {
-        const errJson = await createOrderRes.json().catch(() => ({}));
-        console.warn('Backend order creation returned status', createOrderRes.status, errJson);
-        if (createOrderRes.status === 400) {
-          setIsSubmitting(false);
-          setPaymentError(errJson.error || 'Address is outside delivery radius.');
-          alert(`🚫 Order Placement Blocked!\n\n${errJson.error || 'Your address is outside our delivery zone.'}`);
-          playChime('alert');
-          return;
-        }
-        if (createOrderRes.status === 401) {
-          setIsSubmitting(false);
-          setPaymentError('Payment gateway authentication failed. Please verify credentials or choose Cash on Delivery.');
-          playChime('alert');
-          return;
-        }
-      }
-    } catch (apiErr) {
-      console.warn('Backend /api/create-order not reachable (e.g. static hosting mode):', apiErr);
-    }
-
     const options = {
       key: rzpKey,
       amount: amountInPaise,
@@ -500,7 +452,6 @@ export default function CheckoutModal() {
       name: settings?.store_name || 'GharTak Kart',
       description: `Order #${generatedOrderId} - Hyperlocal Delivery`,
       image: settings?.store_logo || '/logo.jpg',
-      ...(serverOrderId ? { order_id: serverOrderId } : {}),
       prefill: {
         name: (customerName || '').trim() || 'Valued Customer',
         contact: cleanPhone,
@@ -522,40 +473,12 @@ export default function CheckoutModal() {
         }
       },
       handler: async function (response) {
-        const paymentId = response?.razorpay_payment_id;
-        const razorpayOrderId = response?.razorpay_order_id || serverOrderId;
-        const signature = response?.razorpay_signature;
-
-        // STEP 3: If order_id and signature are present, verify with backend
-        if (razorpayOrderId && signature) {
-          try {
-            const verifyRes = await fetch('/api/verify-payment', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                razorpay_order_id: razorpayOrderId,
-                razorpay_payment_id: paymentId,
-                razorpay_signature: signature
-              })
-            });
-
-            if (!verifyRes.ok) {
-              const verifyErr = await verifyRes.json().catch(() => ({}));
-              setIsSubmitting(false);
-              setPaymentError(`Payment verification failed: ${verifyErr.error || 'Signature mismatch'}. Payment not verified.`);
-              playChime('alert');
-              return;
-            }
-          } catch (vErr) {
-            console.warn('Backend verification call failed:', vErr);
-          }
-        }
+        const paymentId = response?.razorpay_payment_id || ('PAY-' + Math.floor(100000 + Math.random() * 900000));
 
         await handleDirectPlaceOrder('Online Payment (Razorpay)', {
           orderId: generatedOrderId,
           paymentStatus: 'Paid',
-          razorpayPaymentId: paymentId || ('PAY-' + Math.floor(100000 + Math.random() * 900000)),
-          razorpayOrderId: razorpayOrderId,
+          razorpayPaymentId: paymentId,
           lat: finalLat,
           lng: finalLng,
           addrText: finalAddrText,
