@@ -116,7 +116,16 @@ export default function DeliveryApp() {
       const matched = staff.find(s => s.phone === partner.phone || s.id === partner.id);
       if (matched) {
         setPartner(prev => {
-          const updated = { ...prev, id: matched.id, name: matched.name, vehicle: matched.vehicle || prev.vehicle };
+          const updated = {
+            ...prev,
+            id: matched.id,
+            name: matched.name,
+            vehicle: matched.vehicle || prev.vehicle,
+            kyc_status: matched.kyc_status || prev.kyc_status,
+            active: matched.active !== undefined ? matched.active : prev.active,
+            shift: matched.shift || prev.shift,
+            active_shift: matched.active_shift || prev.active_shift
+          };
           saveStoredPartner(updated);
           return updated;
         });

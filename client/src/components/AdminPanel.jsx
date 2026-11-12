@@ -157,15 +157,83 @@ export default function AdminPanel() {
   const activeStaffName = adminAuth?.user?.name || adminAuth?.user?.username || adminAuth?.username || 'Staff User';
   const activeStaffUserId = adminAuth?.user?.username || adminAuth?.username || 'staff';
 
-  const [activeTab, setActiveTab] = useState('orders');
+  const STAFF_PERMISSION_OPTIONS = [
+    { id: 'orders', label: 'Order Dispatch & Processing', group: 'OPERATIONS' },
+    { id: 'overview', label: 'Dashboard Stats', group: 'OPERATIONS' },
+    { id: 'products', label: 'Products & Stock', group: 'OPERATIONS' },
+    { id: 'categories', label: 'Categories & Mapping', group: 'OPERATIONS' },
+    { id: 'vendors', label: 'Vendors & Ledger', group: 'FINANCE & SUPPLY' },
+    { id: 'vendor-sheet', label: 'Material & Payment Sheet', group: 'FINANCE & SUPPLY' },
+    { id: 'accounting', label: 'Expenses & P&L', group: 'FINANCE & SUPPLY' },
+    { id: 'reports', label: 'Reports & Analytics', group: 'FINANCE & SUPPLY' },
+    { id: 'offers', label: 'Offer Zone & Gifts', group: 'GROWTH & REWARDS' },
+    { id: 'stamps', label: 'Customers & Wallet', group: 'GROWTH & REWARDS' },
+    { id: 'radius-settings', label: 'Delivery Radius & Settings', group: 'STORE & FLEET' },
+    { id: 'staff', label: 'Delivery Fleet & Riders', group: 'STORE & FLEET' },
+    { id: 'audit', label: 'Audit Logs', group: 'STORE & FLEET' }
+  ];
+
+  // Live staff permissions: pulls from latest Supabase-synced staffUsers so Super Admin changes apply immediately
+  const liveStaffRecord = React.useMemo(() => {
+    if (!isStaff) return null;
+    return (staffUsers || []).find(
+      s => (s.id && adminAuth?.user?.id && s.id === adminAuth.user.id) ||
+           ((s.user_id || s.username || '').toLowerCase() === String(activeStaffUserId || '').toLowerCase())
+    ) || null;
+  }, [isStaff, staffUsers, adminAuth, activeStaffUserId]);
+
+  const staffPermissions = React.useMemo(() => {
+    if (!isStaff) return STAFF_PERMISSION_OPTIONS.map(p => p.id);
+    const perms = liveStaffRecord?.permissions || adminAuth?.user?.permissions || adminAuth?.permissions;
+    return Array.isArray(perms) && perms.length > 0 ? perms : ['orders'];
+  }, [isStaff, liveStaffRecord, adminAuth]);
+
+  const canAccessTab = (tabId) => {
+    if (isSuperAdmin) return true;
+    if (tabId === 'vendors') {
+      return staffPermissions.includes('vendors') || staffPermissions.includes('vendor-sheet');
+    }
+    return staffPermissions.includes(tabId);
+  };
+
+  const [activeTab, setActiveTab] = useState(() => {
+    if (currentRole === 'staff') {
+      const initialPerms = adminAuth?.user?.permissions || adminAuth?.permissions;
+      const firstPerm = Array.isArray(initialPerms) && initialPerms.length > 0 ? initialPerms[0] : 'orders';
+      return firstPerm === 'vendor-sheet' ? 'vendors' : firstPerm;
+    }
+    return 'orders';
+  });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  // Enforce staff restriction: staff can ONLY access order processing
+  // Enforce dynamic staff authorization: automatically log out if disabled, or redirect to first authorized tab
   React.useEffect(() => {
-    if (isStaff && activeTab !== 'orders') {
-      setActiveTab('orders');
+    if (!isStaff) return;
+    if (liveStaffRecord && liveStaffRecord.status === 'disabled') {
+      alert('Your staff account has been disabled by Super Admin.');
+      logoutAdmin();
+      return;
     }
-  }, [isStaff, activeTab]);
+    const isAllowed =
+      activeTab === 'vendors'
+        ? (vendorSubTab === 'sheet'
+            ? staffPermissions.includes('vendor-sheet')
+            : staffPermissions.includes('vendors'))
+        : staffPermissions.includes(activeTab);
+
+    if (!isAllowed) {
+      const fallback = staffPermissions[0] || 'orders';
+      if (fallback === 'vendor-sheet') {
+        setActiveTab('vendors');
+        setVendorSubTab('sheet');
+      } else {
+        setActiveTab(fallback);
+        if (fallback === 'vendors' && vendorSubTab === 'sheet') {
+          setVendorSubTab('directory');
+        }
+      }
+    }
+  }, [isStaff, liveStaffRecord, staffPermissions, activeTab]);
 
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false);
@@ -215,6 +283,7 @@ export default function AdminPanel() {
   const [staffUserPassword, setStaffUserPassword] = useState('');
   const [staffUserPhone, setStaffUserPhone] = useState('');
   const [staffUserStatus, setStaffUserStatus] = useState('active');
+  const [staffUserPermissions, setStaffUserPermissions] = useState(['orders']);
   const [showStaffPasswords, setShowStaffPasswords] = useState({});
 
   // Store Shifts & Rider Credentials State (Admin Only)
@@ -3468,6 +3537,7 @@ Thank you for shopping with ${storeName}! 🙏`;
     setStaffUserPassword('staff123');
     setStaffUserPhone('');
     setStaffUserStatus('active');
+    setStaffUserPermissions(['orders']);
     setIsStaffUserModalOpen(true);
   };
 
@@ -3478,25 +3548,47 @@ Thank you for shopping with ${storeName}! 🙏`;
     setStaffUserPassword(st.password || '');
     setStaffUserPhone(st.phone || '');
     setStaffUserStatus(st.status || 'active');
+    setStaffUserPermissions(
+      Array.isArray(st.permissions) && st.permissions.length > 0 ? st.permissions : ['orders']
+    );
     setIsStaffUserModalOpen(true);
+  };
+
+  const handleToggleStaffPermission = (permId) => {
+    setStaffUserPermissions(prev =>
+      prev.includes(permId) ? prev.filter(p => p !== permId) : [...prev, permId]
+    );
   };
 
   const handleSaveStaffUser = async (e) => {
     e.preventDefault();
-    if (!staffUserUserId.trim() || !staffUserPassword.trim() || !staffUserName.trim()) {
+    const cleanUserId = staffUserUserId.trim().toLowerCase();
+    if (!cleanUserId || !staffUserPassword.trim() || !staffUserName.trim()) {
       alert('Please fill Staff Name, User ID, and Password');
       return;
     }
 
+    const duplicate = (staffUsers || []).find(
+      s => s.id !== editingStaffUser?.id &&
+           ((s.user_id || s.username || '').trim().toLowerCase() === cleanUserId)
+    );
+    if (duplicate) {
+      alert(`User ID "${cleanUserId}" already exists for ${duplicate.name}. Please choose a different User ID.`);
+      return;
+    }
+
+    const finalPermissions = staffUserPermissions.length > 0 ? staffUserPermissions : ['orders'];
+
     const payload = {
       id: editingStaffUser ? editingStaffUser.id : `staff-user-${Date.now()}`,
-      user_id: staffUserUserId.trim().toLowerCase(),
-      username: staffUserUserId.trim().toLowerCase(),
+      user_id: cleanUserId,
+      username: cleanUserId,
       name: staffUserName.trim(),
       password: staffUserPassword.trim(),
       phone: staffUserPhone.trim(),
       role: 'staff',
       status: staffUserStatus,
+      permissions: finalPermissions,
       updated_at: new Date().toISOString(),
       created_at: editingStaffUser ? editingStaffUser.created_at : new Date().toISOString()
     };
@@ -3515,7 +3607,7 @@ Thank you for shopping with ${storeName}! 🙏`;
     if (addAuditLog) {
       addAuditLog({
         action: editingStaffUser ? 'Edit Staff User' : 'Create Staff User',
-        details: `${editingStaffUser ? 'Updated' : 'Created'} staff account: ${payload.name} (User ID: ${payload.user_id})`
+        details: `${editingStaffUser ? 'Updated' : 'Created'} staff account: ${payload.name} (User ID: ${payload.user_id}) — Authorized: ${finalPermissions.join(', ')}`
       });
     }
 
@@ -4651,67 +4743,65 @@ Thank you for shopping with ${storeName}! 🙏`;
         </div>
 
         {/* Quick Action POS Button */}
-        <div className="p-3 border-b border-slate-100 shrink-0">
-          <button
-            type="button"
-            onClick={() => {
-              setIsManualOrderModalOpen(true);
-              setIsSidebarOpen(false);
-            }}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer group"
-          >
-            <MessageSquare className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
-            <span>+ Manual / POS Order</span>
-          </button>
-        </div>
+        {(isSuperAdmin || staffPermissions.includes('orders')) && (
+          <div className="p-3 border-b border-slate-100 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                setIsManualOrderModalOpen(true);
+                setIsSidebarOpen(false);
+              }}
+              className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer group"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-emerald-200 group-hover:scale-110 transition-transform" />
+              <span>+ Manual / POS Order</span>
+            </button>
+          </div>
+        )}
 
         {/* Scrollable Navigation Items */}
         <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-4">
-          {(isStaff
-            ? [
-                {
-                  title: 'TERMINAL',
-                  items: [
-                    { id: 'orders', label: 'Order Processing 📦', icon: Package, badge: activeOrders.length, badgeColor: 'bg-emerald-600 text-white' }
-                  ]
-                }
+          {[
+            {
+              title: 'OPERATIONS',
+              items: [
+                { id: 'overview', label: 'Dashboard Stats', icon: TrendingUp },
+                { id: 'orders', label: 'Order Dispatch', icon: Package, badge: activeOrders.length, badgeColor: 'bg-emerald-600 text-white animate-pulse' },
+                { id: 'products', label: 'Products & Stock', icon: Layers, badge: lowStockProducts.length ? `⚠️ ${lowStockProducts.length}` : null, badgeColor: 'bg-amber-500 text-white' },
+                { id: 'categories', label: 'Categories & Mapping', icon: Sparkles }
               ]
-            : [
-                {
-                  title: 'OPERATIONS',
-                  items: [
-                    { id: 'overview', label: 'Dashboard Stats', icon: TrendingUp },
-                    { id: 'orders', label: 'Order Dispatch', icon: Package, badge: activeOrders.length, badgeColor: 'bg-emerald-600 text-white animate-pulse' },
-                    { id: 'products', label: 'Products & Stock', icon: Layers, badge: lowStockProducts.length ? `⚠️ ${lowStockProducts.length}` : null, badgeColor: 'bg-amber-500 text-white' },
-                    { id: 'categories', label: 'Categories & Mapping', icon: Sparkles }
-                  ]
-                },
-                {
-                  title: 'FINANCE & SUPPLY',
-                  items: [
-                    { id: 'vendors', label: 'Vendors & Ledger 🏪', icon: Store, badge: (vendors || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
-                    { id: 'vendor-sheet', label: 'Material & Payment Sheet 📑', icon: FileSpreadsheet, badge: 'Auto Excel', badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-                    { id: 'accounting', label: 'Expenses & P&L 💰', icon: DollarSign },
-                    { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 }
-                  ]
-                },
-                {
-                  title: 'GROWTH & REWARDS',
-                  items: [
-                    { id: 'offers', label: 'Offer Zone 🔥', icon: Flame, badge: (offers || []).filter(o => o.active !== false).length || null, badgeColor: 'bg-rose-500 text-white' },
-                    { id: 'stamps', label: 'Customers & Wallet 👛', icon: Wallet, badge: stampCustomers.length, badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' }
-                  ]
-                },
-                {
-                  title: 'STORE & FLEET',
-                  items: [
-                    { id: 'radius-settings', label: 'Delivery Radius', icon: MapPin },
-                    { id: 'staff', label: 'Staff & Fleet Accounts 👥', icon: Users, badge: (staffUsers || []).length + staff.length, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
-                    { id: 'audit', label: 'Audit Logs 🛡️', icon: ShieldCheck, badge: (auditLogs || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' }
-                  ]
-                }
+            },
+            {
+              title: 'FINANCE & SUPPLY',
+              items: [
+                { id: 'vendors', label: 'Vendors & Ledger 🏪', icon: Store, badge: (vendors || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
+                { id: 'vendor-sheet', label: 'Material & Payment Sheet 📑', icon: FileSpreadsheet, badge: 'Auto Excel', badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
+                { id: 'accounting', label: 'Expenses & P&L 💰', icon: DollarSign },
+                { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 }
               ]
-          ).map((group, gIdx) => (
+            },
+            {
+              title: 'GROWTH & REWARDS',
+              items: [
+                { id: 'offers', label: 'Offer Zone 🔥', icon: Flame, badge: (offers || []).filter(o => o.active !== false).length || null, badgeColor: 'bg-rose-500 text-white' },
+                { id: 'stamps', label: 'Customers & Wallet 👛', icon: Wallet, badge: stampCustomers.length, badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' }
+              ]
+            },
+            {
+              title: 'STORE & FLEET',
+              items: [
+                { id: 'radius-settings', label: 'Delivery Radius', icon: MapPin },
+                { id: 'staff', label: 'Staff & Fleet Accounts 👥', icon: Users, badge: (staffUsers || []).length + staff.length, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
+                { id: 'audit', label: 'Audit Logs 🛡️', icon: ShieldCheck, badge: (auditLogs || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' }
+              ]
+            }
+          ]
+          .map(group => ({
+            ...group,
+            items: isSuperAdmin ? group.items : group.items.filter(item => staffPermissions.includes(item.id))
+          }))
+          .filter(group => group.items.length > 0)
+          .map((group, gIdx) => (
             <div key={gIdx} className="space-y-1">
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400 px-3 py-1">
                 {group.title}
@@ -4806,18 +4896,16 @@ Thank you for shopping with ${storeName}! 🙏`;
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight whitespace-nowrap">
-                  {isStaff
-                    ? 'Staff Order Terminal'
-                    : activeTab === 'overview'
+                  {activeTab === 'overview'
                     ? 'Operations Dashboard'
                     : activeTab === 'orders'
-                    ? 'Order Dispatch Terminal'
+                    ? (isStaff ? 'Staff Order Terminal' : 'Order Dispatch Terminal')
                     : activeTab === 'products'
                     ? 'Products & Stock'
                     : activeTab === 'categories'
                     ? 'Categories & Mapping'
                     : activeTab === 'vendors'
-                    ? 'Vendors & Ledger'
+                    ? (vendorSubTab === 'sheet' ? 'Material & Payment Sheet' : 'Vendors & Ledger')
                     : activeTab === 'accounting'
                     ? 'Expenses & P&L Statements'
                     : activeTab === 'reports'
@@ -4841,7 +4929,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                 {isStaff && (
                   <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                     <Lock className="w-3 h-3 text-indigo-500" />
-                    Orders Only
+                    Staff ({staffPermissions.length} {staffPermissions.length === 1 ? 'Module' : 'Modules'} Authorized)
                   </span>
                 )}
               </div>
@@ -4850,7 +4938,7 @@ Thank you for shopping with ${storeName}! 🙏`;
 
           <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap shrink-0">
             {/* Store Open/Close Toggle */}
-            {!isStaff && (
+            {(isSuperAdmin || staffPermissions.includes('radius-settings')) && (
               <button
                 type="button"
                 onClick={handleQuickToggleStoreOpen}
@@ -4867,16 +4955,18 @@ Thank you for shopping with ${storeName}! 🙏`;
             )}
 
             {/* Quick Manual Order Button */}
-            <button
-              type="button"
-              onClick={() => setIsManualOrderModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap"
-              title="Create Manual Order for WhatsApp or Phone call customer"
-            >
-              <MessageSquare className="w-3.5 h-3.5 text-emerald-200" />
-              <span className="hidden sm:inline">+ Manual Order</span>
-              <span className="sm:hidden">+ Order</span>
-            </button>
+            {(isSuperAdmin || staffPermissions.includes('orders')) && (
+              <button
+                type="button"
+                onClick={() => setIsManualOrderModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white shadow-xs transition-all cursor-pointer whitespace-nowrap"
+                title="Create Manual Order for WhatsApp or Phone call customer"
+              >
+                <MessageSquare className="w-3.5 h-3.5 text-emerald-200" />
+                <span className="hidden sm:inline">+ Manual Order</span>
+                <span className="sm:hidden">+ Order</span>
+              </button>
+            )}
 
             {/* Sound Bell Toggle */}
             <button
@@ -4949,8 +5039,8 @@ Thank you for shopping with ${storeName}! 🙏`;
               <span className="sm:hidden">Excel</span>
             </button>
 
-            {/* CSV Export - Super Admin only */}
-            {!isStaff && (
+            {/* CSV Export */}
+            {(isSuperAdmin || staffPermissions.includes('reports') || staffPermissions.includes('orders')) && (
               <button
                 type="button"
                 onClick={handleExportCSV}
@@ -4988,7 +5078,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         {/* Main Content Area */}
         <div className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* ================= TAB 1: OVERVIEW ================= */}
-        {activeTab === 'overview' && (
+        {canAccessTab('overview') && activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Quick Action: Create Manual / WhatsApp Order */}
             <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-emerald-500/40">
@@ -5072,7 +5162,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         )}
 
         {/* ================= TAB 2: ORDER MANAGEMENT ================= */}
-        {activeTab === 'orders' && (
+        {canAccessTab('orders') && activeTab === 'orders' && (
           <div className="space-y-4">
             {/* Mobile Push Notification Setup / Status Banner */}
             {notifPermission !== 'granted' ? (
@@ -5663,7 +5753,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 3: PRODUCTS & INVENTORY ================= */}
-        {activeTab === 'products' && (() => {
+        {canAccessTab('products') && activeTab === 'products' && (() => {
           const availableSubs = Array.from(
             new Set(
               products
@@ -5980,7 +6070,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         })()}
 
         {/* ================= TAB 3.01: VENDOR LIST & AUTOMATED ORDER LEDGER ================= */}
-        {isSuperAdmin && activeTab === 'vendors' && (
+        {canAccessTab('vendors') && activeTab === 'vendors' && (
           <div className="space-y-6">
             {/* Header with Title and Action Buttons */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -7585,7 +7675,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 3.02: EXPENSES & INCOME (ACCOUNTING P&L) ================= */}
-        {isSuperAdmin && activeTab === 'accounting' && (
+        {canAccessTab('accounting') && activeTab === 'accounting' && (
           <div className="space-y-6">
             {/* Header with Title and Action Buttons */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -8167,7 +8257,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 3.1: OFFER ZONE & PROMOTIONAL DEALS ================= */}
-        {activeTab === 'offers' && (
+        {canAccessTab('offers') && activeTab === 'offers' && (
           <div className="space-y-6">
             {/* Header with Title and Create / Excel Buttons */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -8668,7 +8758,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 3.2: CUSTOMER ACCOUNTS, CASH WALLETS & STAMP REWARDS ================= */}
-        {activeTab === 'stamps' && (
+        {canAccessTab('stamps') && activeTab === 'stamps' && (
           <div className="space-y-6">
             {/* Header with Title and Excel Download */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -9302,7 +9392,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 3.5: REPORTS & ANALYTICS FOR ALL MODULES ================= */}
-        {activeTab === 'reports' && (
+        {canAccessTab('reports') && activeTab === 'reports' && (
           <div className="space-y-6">
             {/* Header with Sub-Module Switcher and Download Excel */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -10423,7 +10513,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 4: CATEGORIES & MAPPING ================= */}
-        {activeTab === 'categories' && (
+        {canAccessTab('categories') && activeTab === 'categories' && (
           <div className="space-y-4">
             <div className="flex justify-between items-center bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
               <div>
@@ -10500,7 +10590,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
         )}
 
         {/* ================= TAB 5: COMPANY DETAILS & RADIUS SETTINGS ================= */}
-        {activeTab === 'radius-settings' && (
+        {canAccessTab('radius-settings') && activeTab === 'radius-settings' && (
           <div className="max-w-4xl bg-white p-6 md:p-8 rounded-3xl border border-gray-200 shadow-sm space-y-8">
             <form onSubmit={handleSaveSettings} className="space-y-8">
               <div className="space-y-4">
@@ -10979,10 +11069,11 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
           </div>
         )}
 
-        {/* ================= TAB 6: STAFF ACCOUNTS & DELIVERY FLEET (SUPER ADMIN ONLY) ================= */}
-        {isSuperAdmin && activeTab === 'staff' && (
+        {/* ================= TAB 6: STAFF ACCOUNTS & DELIVERY FLEET ================= */}
+        {canAccessTab('staff') && activeTab === 'staff' && (
           <div className="space-y-6">
-            {/* SECTION 1: STAFF OPERATOR USER LOGINS (USER ID & PASSWORD) */}
+            {/* SECTION 1: STAFF OPERATOR USER LOGINS (SUPER ADMIN ONLY) */}
+            {isSuperAdmin && (
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-2.5">
@@ -10993,11 +11084,11 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                     <h3 className="font-extrabold text-base text-gray-900 flex items-center gap-2">
                       <span>Staff Operator Accounts</span>
                       <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-200">
-                        Restricted Order Processing Logins
+                        Role-Based Access Control
                       </span>
                     </h3>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      Create staff login IDs and passwords. Staff can ONLY check orders, view items & values, update status, and print slips. Everything else is hidden.
+                      Create staff login IDs, passwords, and choose exact Admin modules each staff member is authorized to access.
                     </p>
                   </div>
                 </div>
@@ -11026,9 +11117,9 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
               <div className="p-3.5 bg-indigo-50/70 border border-indigo-200 rounded-xl text-xs text-indigo-950 flex items-start gap-2.5">
                 <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
                 <div className="space-y-0.5">
-                  <p className="font-bold">Strict Staff Privilege Enforcement & Tamper Protection:</p>
+                  <p className="font-bold">Custom Admin Authorization Per Staff Account:</p>
                   <p className="text-indigo-900 text-[11px] leading-relaxed">
-                    Staff members log in with their assigned <strong>User ID</strong> and <strong>Password</strong> at the admin login page. Once logged in, they can ONLY view incoming customer orders, inspect customer contact details & items, process dispatch steps, and print tax receipts. <strong>Catalog editing, store radius/pricing, deletion of any kind, and audit logs are completely hidden</strong> and locked from staff.
+                    Staff members sign in with their assigned <strong>User ID</strong> and <strong>Password</strong>. They can ONLY open and manage the modules you authorize for their account below (e.g. Orders, Products, Vendors, Reports, Offer Zone, etc.). Everything not selected stays hidden &amp; locked.
                   </p>
                 </div>
               </div>
@@ -11114,6 +11205,27 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                         </div>
                       </div>
 
+                      {/* Authorized Permissions Display */}
+                      <div className="bg-indigo-50/60 rounded-xl p-2.5 border border-indigo-100 space-y-1.5">
+                        <div className="flex items-center justify-between text-[10px] font-bold text-indigo-700 uppercase">
+                          <span>Authorized Sections:</span>
+                          <span>{(Array.isArray(st.permissions) && st.permissions.length > 0 ? st.permissions : ['orders']).length} / {STAFF_PERMISSION_OPTIONS.length}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {(Array.isArray(st.permissions) && st.permissions.length > 0 ? st.permissions : ['orders']).map(permId => {
+                            const opt = STAFF_PERMISSION_OPTIONS.find(p => p.id === permId);
+                            return (
+                              <span
+                                key={permId}
+                                className="px-1.5 py-0.5 rounded-md bg-white text-indigo-800 border border-indigo-200 text-[10px] font-bold"
+                              >
+                                {opt ? opt.label : permId}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       {/* Card Action Controls */}
                       <div className="pt-2 border-t border-gray-100 flex items-center justify-between text-xs">
                         <button
@@ -11152,6 +11264,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                 })}
               </div>
             </div>
+            )}
 
             {/* SECTION 2: DELIVERY FLEET, SHIFTS & ID VERIFICATION CONSOLE */}
             <div className="space-y-4">
@@ -11358,8 +11471,8 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
           </div>
         )}
 
-        {/* ================= TAB 7: SECURITY & OPERATIONS AUDIT LOG (SUPER ADMIN ONLY) ================= */}
-        {isSuperAdmin && activeTab === 'audit' && (
+        {/* ================= TAB 7: SECURITY & OPERATIONS AUDIT LOG ================= */}
+        {canAccessTab('audit') && activeTab === 'audit' && (
           <div className="space-y-6">
             {/* Header with Title and Excel Download */}
             <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -12396,8 +12509,8 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
             {/* ================= CREATE / EDIT STAFF OPERATOR MODAL (SUPER ADMIN ONLY) ================= */}
       {isSuperAdmin && isStaffUserModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100 flex flex-col">
-            <div className="p-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex items-center justify-between">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl max-h-[92vh] overflow-hidden border border-gray-100 flex flex-col">
+            <div className="p-5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
                   <KeyRound className="w-5 h-5 text-white" />
@@ -12407,7 +12520,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                     {editingStaffUser ? 'Edit Staff User Account' : 'Create Staff Login Account'}
                   </h3>
                   <p className="text-[11px] text-white/80">
-                    Staff can only check orders, process dispatches & print slips
+                    Set ID, password &amp; choose exact Admin modules this staff can access
                   </p>
                 </div>
               </div>
@@ -12420,61 +12533,64 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
               </button>
             </div>
 
-            <form onSubmit={handleSaveStaffUser} className="p-6 space-y-3.5 text-xs">
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Staff Member Full Name <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={staffUserName}
-                  onChange={(e) => setStaffUserName(e.target.value)}
-                  placeholder="e.g. Rahul Sharma"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-semibold"
-                />
+            <form onSubmit={handleSaveStaffUser} className="p-5 sm:p-6 space-y-4 text-xs overflow-y-auto flex-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Staff Member Full Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={staffUserName}
+                    onChange={(e) => setStaffUserName(e.target.value)}
+                    placeholder="e.g. Rahul Sharma"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-semibold"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Staff Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={staffUserPhone}
+                    onChange={(e) => setStaffUserPhone(e.target.value)}
+                    placeholder="+91 98765 00000"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
               </div>
 
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Staff User ID (Username for Login) <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={staffUserUserId}
-                  onChange={(e) => setStaffUserUserId(e.target.value.toLowerCase())}
-                  placeholder="e.g. staff01 or rahul_pack"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-mono font-bold"
-                />
-                <p className="text-[10px] text-gray-400 mt-0.5">Staff will type this User ID to sign in.</p>
-              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Staff User ID (Login ID) <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={staffUserUserId}
+                    onChange={(e) => setStaffUserUserId(e.target.value.toLowerCase())}
+                    placeholder="e.g. staff01 or rahul_pack"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-mono font-bold"
+                  />
+                </div>
 
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Security Password <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  required
-                  type="text"
-                  value={staffUserPassword}
-                  onChange={(e) => setStaffUserPassword(e.target.value)}
-                  placeholder="e.g. staff123"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-mono"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-gray-700 mb-1">
-                  Staff Phone Number
-                </label>
-                <input
-                  type="tel"
-                  value={staffUserPhone}
-                  onChange={(e) => setStaffUserPhone(e.target.value)}
-                  placeholder="+91 98765 00000"
-                  className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500"
-                />
+                <div>
+                  <label className="block font-bold text-gray-700 mb-1">
+                    Security Password <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    required
+                    type="text"
+                    value={staffUserPassword}
+                    onChange={(e) => setStaffUserPassword(e.target.value)}
+                    placeholder="e.g. staff123"
+                    className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-mono"
+                  />
+                </div>
               </div>
 
               <div>
@@ -12486,9 +12602,69 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                   onChange={(e) => setStaffUserStatus(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl border border-gray-300 focus:outline-none focus:border-indigo-500 font-medium bg-white"
                 >
-                  <option value="active">Active (Can log in & process orders)</option>
+                  <option value="active">Active (Can log in &amp; check authorized sections)</option>
                   <option value="disabled">Disabled (Cannot log in)</option>
                 </select>
+              </div>
+
+              {/* Granular Admin Authorizations */}
+              <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <h4 className="font-extrabold text-indigo-950 text-xs flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-indigo-600" />
+                      <span>Admin Authorizations (Things Staff Can Check)</span>
+                    </h4>
+                    <p className="text-[10px] text-indigo-700 mt-0.5">
+                      Select which Admin Panel sections this ID &amp; password can open ({staffUserPermissions.length} selected)
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setStaffUserPermissions(STAFF_PERMISSION_OPTIONS.map(p => p.id))}
+                      className="px-2 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px]"
+                    >
+                      Select All
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffUserPermissions(['orders'])}
+                      className="px-2 py-1 rounded-lg bg-white hover:bg-gray-100 text-indigo-700 border border-indigo-200 font-bold text-[10px]"
+                    >
+                      Orders Only
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {STAFF_PERMISSION_OPTIONS.map(perm => {
+                    const checked = staffUserPermissions.includes(perm.id);
+                    return (
+                      <label
+                        key={perm.id}
+                        className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                          checked
+                            ? 'bg-white border-indigo-400 shadow-xs text-indigo-950'
+                            : 'bg-white/60 border-gray-200 text-gray-500 hover:border-indigo-200'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => handleToggleStaffPermission(perm.id)}
+                            className="w-4 h-4 rounded accent-indigo-600 shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="font-bold text-[11px] truncate">{perm.label}</div>
+                            <div className="text-[9px] font-semibold uppercase tracking-wider text-gray-400">{perm.group}</div>
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               <div className="pt-3 border-t border-gray-100 flex items-center justify-end gap-2">
@@ -15309,7 +15485,12 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
           rider={selectedRiderForAdmin}
           orders={orders}
           onRiderUpdated={(updated) => {
-            setStaff(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s));
+            setStaff(prev => {
+              const nextStaff = prev.map(s => s.id === updated.id ? { ...s, ...updated } : s);
+              try { localStorage.setItem('gk_staff', JSON.stringify(nextStaff)); } catch {}
+              syncToFirebase('staff', nextStaff);
+              return nextStaff;
+            });
             setSelectedRiderForAdmin(updated);
           }}
         />

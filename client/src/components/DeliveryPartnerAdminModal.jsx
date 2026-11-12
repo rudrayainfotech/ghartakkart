@@ -14,10 +14,8 @@ export const STORE_SHIFTS = [
 ];
 
 export function DeliveryPartnerAdminModal({ isOpen, onClose, rider, orders = [], onRiderUpdated }) {
-  if (!isOpen || !rider) return null;
-
   const [activeTab, setActiveTab] = useState('kyc'); // 'kyc' | 'location' | 'cash' | 'orders' | 'credentials'
-  const [kycStatus, setKycStatus] = useState(rider.kyc_status || 'verified');
+  const [kycStatus, setKycStatus] = useState(rider?.kyc_status || 'verified');
   const [rejectReason, setRejectReason] = useState('');
   const [showRejectInput, setShowRejectInput] = useState(false);
   const [settleAmount, setSettleAmount] = useState('');
@@ -25,10 +23,21 @@ export function DeliveryPartnerAdminModal({ isOpen, onClose, rider, orders = [],
   const [previewImage, setPreviewImage] = useState(null);
 
   // Rider ID, Password and Shift Management States
-  const [riderUsername, setRiderUsername] = useState(rider.username || rider.phone || '');
-  const [riderPassword, setRiderPassword] = useState(rider.password || '123456');
-  const [riderShift, setRiderShift] = useState(rider.shift || rider.active_shift?.name || STORE_SHIFTS[0]);
+  const [riderUsername, setRiderUsername] = useState(rider?.username || rider?.phone || '');
+  const [riderPassword, setRiderPassword] = useState(rider?.password || '123456');
+  const [riderShift, setRiderShift] = useState(rider?.shift || rider?.active_shift?.name || STORE_SHIFTS[0]);
   const [saveSuccessMsg, setSaveSuccessMsg] = useState('');
+
+  React.useEffect(() => {
+    if (rider) {
+      setKycStatus(rider.kyc_status || 'verified');
+      setRiderUsername(rider.username || rider.phone || '');
+      setRiderPassword(rider.password || '123456');
+      setRiderShift(rider.shift || rider.active_shift?.name || STORE_SHIFTS[0]);
+    }
+  }, [rider?.id]);
+
+  if (!isOpen || !rider) return null;
 
   const assignedOrders = (orders || []).filter(o => o.assigned_staff_id === rider.id);
   const activeOrders = assignedOrders.filter(o => !['Delivered', 'Cancelled'].includes(o.order_status));

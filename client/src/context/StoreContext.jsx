@@ -1281,11 +1281,13 @@ export function StoreProvider({ children }) {
 
       if (!isBackgroundPoll) setLoading(false);
 
-      // Fast check if current session is an admin or visiting the admin terminal
+      // Fast check if current session is an admin or visiting the admin/delivery terminal
       const hasAdminAuth = typeof window !== 'undefined' && (
         Boolean(localStorage.getItem('gk_admin_auth')) ||
         Boolean(sessionStorage.getItem('gk_admin_auth')) ||
-        window.location.pathname.includes('admin')
+        window.location.pathname.includes('admin') ||
+        window.location.pathname.includes('delivery') ||
+        (typeof document !== 'undefined' && (document.title.toLowerCase().includes('admin') || document.title.toLowerCase().includes('delivery')))
       );
 
       // Step 2: Fetch admin and staff nodes
@@ -1300,11 +1302,11 @@ export function StoreProvider({ children }) {
             fetchNodeFromSupabase('expenses'),
             fetchNodeFromSupabase('other_incomes')
           ]);
-          if (sbStaff && Array.isArray(sbStaff) && sbStaff.length) {
+          if (Array.isArray(sbStaff)) {
             setStaff(sbStaff);
             try { localStorage.setItem('gk_staff', JSON.stringify(sbStaff)); } catch {}
           }
-          if (sbStaffUsers && Array.isArray(sbStaffUsers) && sbStaffUsers.length) {
+          if (Array.isArray(sbStaffUsers)) {
             setStaffUsers(sbStaffUsers);
             try { localStorage.setItem('gk_staff_users', JSON.stringify(sbStaffUsers)); } catch {}
           }
@@ -1340,6 +1342,12 @@ export function StoreProvider({ children }) {
       isFetchingCatalogRef.current = false;
     }
   };
+
+  useEffect(() => {
+    if (adminAuth) {
+      fetchData(true);
+    }
+  }, [adminAuth?.token]);
 
   useEffect(() => {
     fetchData(false);
@@ -2224,15 +2232,34 @@ export function StoreProvider({ children }) {
       return authData;
     }
 
+    // Fetch live Staff Users from Supabase so newly created/edited staff accounts work immediately on any device
+    let liveStaffList = Array.isArray(staffUsers) ? staffUsers : [];
+    if (isSupabaseConfigured) {
+      try {
+        const sbStaffUsers = await fetchNodeFromSupabase('staff_users');
+        if (Array.isArray(sbStaffUsers)) {
+          liveStaffList = sbStaffUsers;
+          setStaffUsers(sbStaffUsers);
+          try { localStorage.setItem('gk_staff_users', JSON.stringify(sbStaffUsers)); } catch {}
+        }
+      } catch (err) {
+        console.warn('Could not refresh staff_users during login, using cached list:', err);
+      }
+    }
+
     // Check Staff Users
-    const foundStaff = (staffUsers || []).find(
-      s => s.status !== 'disabled' &&
-           ((s.user_id && s.user_id.toLowerCase() === cleanUser.toLowerCase()) ||
-            (s.username && s.username.toLowerCase() === cleanUser.toLowerCase())) &&
-           s.password === password
+    const foundStaff = liveStaffList.find(
+      s => s &&
+           s.status !== 'disabled' &&
+           ((s.user_id && s.user_id.trim().toLowerCase() === cleanUser.toLowerCase()) ||
+            (s.username && s.username.trim().toLowerCase() === cleanUser.toLowerCase())) &&
+           String(s.password || '') === String(password || '')
     );
 
     if (foundStaff) {
+      const staffPermissions = Array.isArray(foundStaff.permissions) && foundStaff.permissions.length > 0
+        ? foundStaff.permissions
+        : ['orders'];
       const authData = {
         token: `gk-staff-token-${foundStaff.id}`,
         user: {
@@ -2240,10 +2267,12 @@ export function StoreProvider({ children }) {
           username: foundStaff.user_id || foundStaff.username,
           name: foundStaff.name,
           role: 'staff',
-          phone: foundStaff.phone
+          phone: foundStaff.phone,
+          permissions: staffPermissions
         },
         username: foundStaff.user_id || foundStaff.username,
         role: 'staff',
+        permissions: staffPermissions,
         loginTime: new Date().toISOString()
       };
       setAdminAuth(authData);
@@ -2255,7 +2284,7 @@ export function StoreProvider({ children }) {
         userName: foundStaff.name,
         role: 'staff',
         action: 'Staff Member Login',
-        details: `Staff member ${foundStaff.name} (User ID: ${foundStaff.user_id || foundStaff.username}) logged into Order Processing Terminal`
+        details: `Staff member ${foundStaff.name} (User ID: ${foundStaff.user_id || foundStaff.username}) logged in with permissions: ${staffPermissions.join(', ')}`
       });
       return authData;
     }
