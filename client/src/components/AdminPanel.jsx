@@ -77,6 +77,7 @@ import {
   Percent,
   Briefcase,
   X,
+  XCircle,
   Menu,
   ChevronRight,
   ChevronLeft,
