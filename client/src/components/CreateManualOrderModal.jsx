@@ -79,6 +79,34 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
   const [customItemPurchasePrice, setCustomItemPurchasePrice] = useState('');
   const [customItemQty, setCustomItemQty] = useState('1');
 
+  // Track selected variant index per catalog product: { [productId]: number }
+  const [selectedVariantIdx, setSelectedVariantIdx] = useState({});
+  // Track staging quantity to add per catalog product: { [productId]: number }
+  const [productStagingQtys, setProductStagingQtys] = useState({});
+
+  // Helper to extract clean variants array for any product
+  const getProductVariants = (prod) => {
+    if (!prod) return [];
+    if (Array.isArray(prod.variants) && prod.variants.length > 0) {
+      return prod.variants.map((v, i) => ({
+        id: v.id || `var-${i}`,
+        unit: v.unit || prod.unit || '1 unit',
+        price: Number(v.price) || Number(prod.price) || 0,
+        purchase_price: Number(v.purchase_price) || Number(prod.purchase_price) || 0,
+        stock: v.stock !== undefined ? Number(v.stock) : (prod.stock !== undefined ? Number(prod.stock) : 50)
+      }));
+    }
+    return [
+      {
+        id: prod.id || 'var-0',
+        unit: prod.unit || '1 unit',
+        price: Number(prod.price) || 0,
+        purchase_price: Number(prod.purchase_price) || 0,
+        stock: prod.stock !== undefined ? Number(prod.stock) : 50
+      }
+    ];
+  };
+
   // Pricing Overrides
   const [deliveryFee, setDeliveryFee] = useState(0);
   const [discountAmount, setDiscountAmount] = useState(0);
@@ -143,33 +171,62 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     }
   }, [manualDeliveryTimeInfo?.slotLabel]);
 
-  // Add Item to Order with optional custom quantity
-  const handleAddItem = (prod, customQty = 1) => {
-    const qtyToAdd = Math.max(0.1, Number(customQty) || 1);
+  // Add Item to Order with variant support & optional custom quantity
+  const handleAddItem = (prod, customQty = null, variantIdxOverride = null) => {
+    const variants = getProductVariants(prod);
+    const varIdx = variantIdxOverride !== null
+      ? variantIdxOverride
+      : (selectedVariantIdx[prod.id] !== undefined ? selectedVariantIdx[prod.id] : 0);
+    const activeVar = variants[varIdx] || variants[0];
+
+    const qtyToAdd = customQty !== null
+      ? Math.max(0.01, Number(customQty) || 1)
+      : Math.max(0.01, Number(productStagingQtys[prod.id]) || 1);
+
+    const targetId = variants.length > 1 ? `${prod.id}__${activeVar.id || activeVar.unit}` : prod.id;
+
     setOrderItems(prev => {
-      const existing = prev.find(it => it.product_id === prod.id);
+      const existing = prev.find(it => it.product_id === targetId);
       if (existing) {
         return prev.map(it =>
-          it.product_id === prod.id ? { ...it, qty: Number((it.qty + qtyToAdd).toFixed(2)) } : it
+          it.product_id === targetId ? { ...it, qty: Number((it.qty + qtyToAdd).toFixed(3)) } : it
         );
       }
       return [
         ...prev,
         {
-          product_id: prod.id,
-          base_product_id: prod.base_product_id || prod.id,
+          product_id: targetId,
+          base_product_id: prod.id,
+          variant_id: activeVar.id,
           name: prod.name,
           category: prod.category || '',
           category_id: prod.category_id || '',
-          unit: prod.unit || '1 unit',
-          price: Number(prod.price) || 0,
-          purchase_price: Number(prod.purchase_price) || 0,
-          qty: qtyToAdd,
+          unit: activeVar.unit || prod.unit || '1 unit',
+          price: Number(activeVar.price) || Number(prod.price) || 0,
+          purchase_price: Number(activeVar.purchase_price) || Number(prod.purchase_price) || 0,
+          qty: Number(qtyToAdd.toFixed(3)),
           is_custom: false,
           image: prod.image || ''
         }
       ];
     });
+  };
+
+  // Switch Variant for an item already in the order
+  const handleSwitchVariant = (productId, newVar) => {
+    if (!newVar) return;
+    setOrderItems(prev =>
+      prev.map(it => {
+        if (it.product_id !== productId) return it;
+        return {
+          ...it,
+          variant_id: newVar.id,
+          unit: newVar.unit,
+          price: Number(newVar.price) || it.price,
+          purchase_price: Number(newVar.purchase_price) || it.purchase_price || 0
+        };
+      })
+    );
   };
 
   // Update Item Quantity (supports decimal kg/grams like 0.25, 0.5, 1.5, etc.)
@@ -342,11 +399,14 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
 
       // 1. Deduct Stock for catalog products
       const updatedProducts = products.map(prod => {
-        const purchasedItem = orderItems.find(it => it.product_id === prod.id && !it.is_custom);
-        if (purchasedItem) {
+        const matchingPurchased = orderItems.filter(
+          it => (it.base_product_id === prod.id || it.product_id === prod.id) && !it.is_custom
+        );
+        if (matchingPurchased.length > 0) {
+          const totalQtyDeducted = matchingPurchased.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
           return {
             ...prod,
-            stock: Math.max(0, (Number(prod.stock) || 0) - (Number(purchasedItem.qty) || 0))
+            stock: Math.max(0, (Number(prod.stock) || 0) - totalQtyDeducted)
           };
         }
         return prod;
@@ -1083,49 +1143,161 @@ Thank you for shopping with ${storeName}! 🙏`;
                   )}
 
                   {/* Product Grid / Selector */}
-                  <div className="max-h-56 overflow-y-auto space-y-1.5 pr-1">
+                  <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
                     {filteredProducts.slice(0, 40).map(prod => {
-                      const existing = orderItems.find(it => it.product_id === prod.id);
+                      const variants = getProductVariants(prod);
+                      const activeVarIdx = selectedVariantIdx[prod.id] || 0;
+                      const activeVar = variants[activeVarIdx] || variants[0];
+                      const targetId = variants.length > 1 ? `${prod.id}__${activeVar.id || activeVar.unit}` : prod.id;
+                      const existing = orderItems.find(it => it.product_id === targetId);
+                      const stagingQty = productStagingQtys[prod.id] || 1;
+
                       return (
                         <div
                           key={prod.id}
-                          className="flex items-center justify-between p-2 rounded-xl bg-gray-50/80 hover:bg-emerald-50/50 border border-gray-100 hover:border-emerald-200 transition-all text-xs"
+                          className={`p-2.5 rounded-xl border transition-all text-xs space-y-2 ${
+                            existing
+                              ? 'bg-emerald-50/80 border-emerald-300 shadow-2xs'
+                              : 'bg-gray-50/90 hover:bg-emerald-50/40 border-gray-200'
+                          }`}
                         >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            {prod.image ? (
-                              <img
-                                src={prod.image}
-                                alt={prod.name}
-                                className="w-9 h-9 rounded-lg object-cover shrink-0 border border-gray-200"
-                              />
-                            ) : (
-                              <div className="w-9 h-9 rounded-lg bg-gray-200 flex items-center justify-center font-bold text-gray-500 shrink-0">
-                                🛍️
+                          {/* Top Row: Image, Name, Unit, Price, Stock & Add/Cart Stepper */}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                              {prod.image ? (
+                                <img
+                                  src={prod.image}
+                                  alt={prod.name}
+                                  className="w-10 h-10 rounded-lg object-cover shrink-0 border border-gray-200 bg-white"
+                                />
+                              ) : (
+                                <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center font-bold text-gray-500 shrink-0">
+                                  🛍️
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <h5 className="font-extrabold text-gray-900 truncate">{prod.name}</h5>
+                                <div className="flex items-center gap-2 text-[11px] text-gray-600 mt-0.5 flex-wrap">
+                                  <span className="font-bold text-emerald-700 text-xs">₹{activeVar.price}</span>
+                                  <span>•</span>
+                                  <span className="font-semibold text-gray-500">{activeVar.unit}</span>
+                                  {activeVar.stock !== undefined && (
+                                    <span className={`px-1.5 py-0.2 rounded text-[10px] ${
+                                      Number(activeVar.stock) <= 0
+                                        ? 'bg-rose-100 text-rose-800 font-bold'
+                                        : Number(activeVar.stock) <= 5
+                                        ? 'bg-amber-100 text-amber-800 font-bold'
+                                        : 'text-gray-400'
+                                    }`}>
+                                      {Number(activeVar.stock) <= 0 ? 'Out of stock' : `Stock: ${activeVar.stock}`}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                            )}
-                            <div className="min-w-0">
-                              <h5 className="font-bold text-gray-900 truncate">{prod.name}</h5>
-                              <div className="flex items-center gap-2 text-[10px] text-gray-500">
-                                <span>{prod.unit}</span>
-                                <span>•</span>
-                                <span className="font-bold text-emerald-700">₹{prod.price}</span>
-                                {prod.stock !== undefined && (
-                                  <span className={`px-1 rounded ${Number(prod.stock) <= 3 ? 'text-rose-600 font-bold bg-rose-50' : 'text-gray-400'}`}>
-                                    Stock: {prod.stock}
-                                  </span>
-                                )}
-                              </div>
+                            </div>
+
+                            {/* Add Button or Cart Qty */}
+                            <div className="shrink-0">
+                              {existing ? (
+                                <div className="flex items-center gap-1 bg-emerald-600 text-white p-1 rounded-lg font-bold text-xs shadow-xs">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateQty(targetId, Number((existing.qty - (existing.qty > 1 ? 1 : 0.25)).toFixed(2)))}
+                                    className="w-5 h-5 flex items-center justify-center hover:bg-emerald-700 rounded font-black cursor-pointer"
+                                    title="Decrease quantity"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0.01"
+                                    value={existing.qty}
+                                    onChange={(e) => handleUpdateQty(targetId, e.target.value)}
+                                    className="w-12 text-center text-xs font-black text-emerald-950 bg-white rounded px-0.5 py-0.5 focus:outline-none"
+                                    title="Type exact quantity (e.g. 0.5, 1, 2.5)"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateQty(targetId, Number((existing.qty + (existing.qty >= 1 ? 1 : 0.25)).toFixed(2)))}
+                                    className="w-5 h-5 flex items-center justify-center hover:bg-emerald-700 rounded font-black cursor-pointer"
+                                    title="Increase quantity"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddItem(prod, stagingQty, activeVarIdx)}
+                                  className="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white rounded-lg font-black text-xs shadow-xs transition-all cursor-pointer flex items-center gap-1"
+                                >
+                                  <span>+ Add</span>
+                                  {stagingQty > 1 && <span className="bg-white/20 px-1 rounded text-[10px]">({stagingQty})</span>}
+                                </button>
+                              )}
                             </div>
                           </div>
 
-                          <div>
-                            {existing ? (
-                              <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-lg p-0.5 shadow-xs">
+                          {/* Multi-Weight / Variant Selector (e.g. 500g, 1kg, 250g) */}
+                          {variants.length > 1 && (
+                            <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-gray-200/60">
+                              <span className="text-[10px] text-gray-500 font-bold">Weight / Pack:</span>
+                              {variants.map((v, idx) => (
+                                <button
+                                  key={v.id || idx}
+                                  type="button"
+                                  onClick={() => setSelectedVariantIdx(prev => ({ ...prev, [prod.id]: idx }))}
+                                  className={`px-2 py-0.5 rounded text-[10px] font-bold border transition-all cursor-pointer flex items-center gap-1 ${
+                                    idx === activeVarIdx
+                                      ? 'bg-emerald-700 text-white border-emerald-700 shadow-2xs'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:border-emerald-500 hover:bg-emerald-50'
+                                  }`}
+                                >
+                                  <span>{v.unit}</span>
+                                  <span className={idx === activeVarIdx ? 'text-amber-200' : 'text-emerald-700'}>₹{v.price}</span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Quick Quantity Chooser for this item */}
+                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-gray-200/60">
+                            <div className="flex items-center gap-1 flex-wrap">
+                              <span className="text-[10px] text-gray-500 font-bold">Qty Choose:</span>
+                              {[0.25, 0.5, 1, 2, 3, 5, 10].map((preset) => {
+                                const isPresetActive = existing ? Number(existing.qty) === preset : stagingQty === preset;
+                                return (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => {
+                                      if (existing) {
+                                        handleUpdateQty(targetId, preset);
+                                      } else {
+                                        setProductStagingQtys(prev => ({ ...prev, [prod.id]: preset }));
+                                        handleAddItem(prod, preset, activeVarIdx);
+                                      }
+                                    }}
+                                    className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                                      isPresetActive
+                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                    }`}
+                                  >
+                                    {preset >= 1 ? `${preset}` : `${preset * 1000}g`}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Staging Stepper if not added yet */}
+                            {!existing && (
+                              <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden text-xs shrink-0">
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateQty(prod.id, existing.qty - 1)}
-                                  className="w-5 h-6 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-800 rounded font-bold cursor-pointer"
-                                  title="Decrease quantity"
+                                  onClick={() => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Math.max(0.25, Number(((stagingQty - (stagingQty > 1 ? 1 : 0.25))).toFixed(2))) }))}
+                                  className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-700 font-bold"
                                 >
                                   -
                                 </button>
@@ -1133,28 +1305,18 @@ Thank you for shopping with ${storeName}! 🙏`;
                                   type="number"
                                   step="any"
                                   min="0.01"
-                                  value={existing.qty}
-                                  onChange={(e) => handleUpdateQty(prod.id, e.target.value)}
-                                  className="w-12 text-center text-xs font-black text-emerald-900 bg-white border border-emerald-200 rounded px-0.5 py-0.5 focus:outline-none"
-                                  title="Type exact quantity (e.g. 0.5, 1, 2.5)"
+                                  value={stagingQty}
+                                  onChange={(e) => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Math.max(0.01, Number(e.target.value) || 1) }))}
+                                  className="w-9 text-center font-bold text-xs py-0.5 focus:outline-none"
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => handleUpdateQty(prod.id, existing.qty + 1)}
-                                  className="w-5 h-6 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-800 rounded font-bold cursor-pointer"
-                                  title="Increase quantity"
+                                  onClick={() => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Number(((stagingQty + (stagingQty >= 1 ? 1 : 0.25))).toFixed(2)) }))}
+                                  className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-700 font-bold"
                                 >
                                   +
                                 </button>
                               </div>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => handleAddItem(prod)}
-                                className="px-3 py-1 bg-white hover:bg-emerald-600 text-gray-700 hover:text-white border border-gray-300 hover:border-emerald-600 rounded-lg font-bold text-xs shadow-2xs transition-all cursor-pointer"
-                              >
-                                + Add
-                              </button>
                             )}
                           </div>
                         </div>
@@ -1203,6 +1365,9 @@ Thank you for shopping with ${storeName}! 🙏`;
                         const lineCost = Number((itemCost * itemQty).toFixed(2));
                         const lineMargin = lineCost > 0 ? Number((lineTotal - lineCost).toFixed(2)) : null;
 
+                        const parentProd = products?.find(p => p.id === item.base_product_id);
+                        const parentVariants = parentProd ? getProductVariants(parentProd) : [];
+
                         return (
                           <div
                             key={item.product_id}
@@ -1222,6 +1387,27 @@ Thank you for shopping with ${storeName}! 🙏`;
                                     {item.unit}
                                   </span>
                                 </div>
+
+                                {/* Switch weight variant if product has multiple */}
+                                {parentVariants.length > 1 && (
+                                  <div className="flex items-center gap-1 mt-1 flex-wrap">
+                                    <span className="text-[9px] text-gray-400 font-bold">Switch Weight:</span>
+                                    {parentVariants.map((v) => (
+                                      <button
+                                        key={v.id}
+                                        type="button"
+                                        onClick={() => handleSwitchVariant(item.product_id, v)}
+                                        className={`px-1.5 py-0.2 rounded text-[9px] font-bold border transition-all cursor-pointer ${
+                                          item.unit === v.unit
+                                            ? 'bg-emerald-600 text-white border-emerald-600'
+                                            : 'bg-white text-gray-700 border-gray-200 hover:border-emerald-300 hover:bg-emerald-50'
+                                        }`}
+                                      >
+                                        {v.unit} (₹{v.price})
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
 
                               <button
@@ -1267,11 +1453,34 @@ Thank you for shopping with ${storeName}! 🙏`;
                                 />
                               </div>
 
-                              {/* Quantity with Minus, Direct Input, Plus */}
+                              {/* Quantity with Minus, Direct Input, Plus & Dropdown */}
                               <div>
-                                <label className="text-[9px] font-bold text-gray-700 block mb-0.5">
-                                  Quantity (मात्रा)
-                                </label>
+                                <div className="flex items-center justify-between mb-0.5">
+                                  <label className="text-[9px] font-bold text-gray-700">
+                                    Quantity (मात्रा)
+                                  </label>
+                                  <select
+                                    value={item.qty}
+                                    onChange={(e) => handleUpdateQty(item.product_id, e.target.value)}
+                                    className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded px-1 py-0.2 focus:outline-none cursor-pointer"
+                                    title="Choose quantity from presets"
+                                  >
+                                    <option value="0.25">0.25 (250g)</option>
+                                    <option value="0.5">0.5 (500g)</option>
+                                    <option value="0.75">0.75 (750g)</option>
+                                    <option value="1">1 Unit / 1 kg</option>
+                                    <option value="1.5">1.5</option>
+                                    <option value="2">2 Units / 2 kg</option>
+                                    <option value="2.5">2.5</option>
+                                    <option value="3">3 Units / 3 kg</option>
+                                    <option value="4">4 Units</option>
+                                    <option value="5">5 Units / 5 kg</option>
+                                    <option value="10">10 Units / 10 kg</option>
+                                    {![0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 10].includes(Number(item.qty)) && (
+                                      <option value={item.qty}>{item.qty} (Custom)</option>
+                                    )}
+                                  </select>
+                                </div>
                                 <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden">
                                   <button
                                     type="button"
@@ -1304,7 +1513,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                               {/* Quick Quantity Presets */}
                               <div className="flex items-center gap-1 flex-wrap">
                                 <span className="text-[9px] text-gray-400 font-bold">Quick:</span>
-                                {[0.25, 0.5, 1, 2, 5].map((preset) => (
+                                {[0.25, 0.5, 0.75, 1, 2, 3, 5, 10].map((preset) => (
                                   <button
                                     key={preset}
                                     type="button"
