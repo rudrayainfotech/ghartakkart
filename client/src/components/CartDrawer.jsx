@@ -60,6 +60,15 @@ export default function CartDrawer() {
   const [couponError, setCouponError] = useState('');
   const [couponSuccess, setCouponSuccess] = useState('');
 
+  // Dynamic Delivery Timing based on distance and cart items (kitchen / packing prep)
+  const deliveryTimingInfo = useMemo(() => {
+    return calculateDeliveryTime({
+      distanceKm: userLocation?.distance_km || 1,
+      items: cart,
+      settings
+    });
+  }, [userLocation?.distance_km, cart, settings]);
+
   if (!isCartOpen || !customerUser?.isLoggedIn) return null;
 
   const storeStatus = getStoreOperatingStatus(settings);
@@ -148,19 +157,10 @@ export default function CartDrawer() {
   };
 
   // Deliverability validations
-  const isOutOfZone = !userLocation.deliverable;
-  const minOrderRequired = userLocation.min_order || 0;
+  const isOutOfZone = !userLocation?.deliverable;
+  const minOrderRequired = userLocation?.min_order || 0;
   const meetsMinOrder = cartSubtotal >= minOrderRequired;
   const shortfall = Math.max(0, minOrderRequired - cartSubtotal);
-
-  // Dynamic Delivery Timing based on distance and cart items (kitchen / packing prep)
-  const deliveryTimingInfo = useMemo(() => {
-    return calculateDeliveryTime({
-      distanceKm: userLocation.distance_km || 1,
-      items: cart,
-      settings
-    });
-  }, [userLocation.distance_km, cart, settings]);
 
   const canCheckout = cart.length > 0 && !isOutOfZone && meetsMinOrder;
 
@@ -207,16 +207,16 @@ export default function CartDrawer() {
               <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${
                 isDetectingLocation
                   ? 'bg-amber-500 animate-spin'
-                  : !userLocation.isAutoDetected
+                  : !userLocation?.isAutoDetected
                   ? 'bg-orange-500 animate-pulse'
-                  : userLocation.deliverable ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'
+                  : userLocation?.deliverable ? 'bg-emerald-500' : 'bg-rose-500 animate-pulse'
               }`} />
               <span className="text-gray-600 truncate">
-                Deliver to: <strong className="text-gray-900">{isDetectingLocation ? 'Detecting your GPS location...' : (!userLocation.isAutoDetected ? 'Location not verified yet' : (userLocation.addressText || 'Select Address'))}</strong>
+                Deliver to: <strong className="text-gray-900">{isDetectingLocation ? 'Detecting your GPS location...' : (!userLocation?.isAutoDetected ? 'Location not verified yet' : (userLocation?.addressText || 'Select Address'))}</strong>
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0">
-              {!userLocation.isAutoDetected && (
+              {!userLocation?.isAutoDetected && (
                 <button
                   type="button"
                   onClick={() => autoFetchCustomerLocation({ silent: false })}
@@ -263,7 +263,7 @@ export default function CartDrawer() {
               <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold">Cannot deliver to this location</p>
-                <p className="text-rose-700 mt-0.5 leading-snug">{userLocation.reason}</p>
+                <p className="text-rose-700 mt-0.5 leading-snug">{userLocation?.reason}</p>
                 <button
                   type="button"
                   onClick={() => {
@@ -285,7 +285,7 @@ export default function CartDrawer() {
               <div>
                 <p className="font-bold">Minimum Order Required: ₹{minOrderRequired}</p>
                 <p className="text-amber-800 mt-0.5">
-                  Add items worth <span className="font-bold text-amber-950">₹{shortfall}</span> more to deliver to your zone ({userLocation.distance_km} km).
+                  Add items worth <span className="font-bold text-amber-950">₹{shortfall}</span> more to deliver to your zone ({userLocation?.distance_km} km).
                 </p>
               </div>
             </div>
@@ -580,7 +580,7 @@ export default function CartDrawer() {
                 )}
                 <div className="flex justify-between items-center">
                   <span>
-                    Delivery Partner Fee ({userLocation.distance_km} km)
+                    Delivery Partner Fee ({userLocation?.distance_km ?? 0} km)
                     {!isZeroDeliveryFee && freeDeliveryMinOrder > 0 && (
                       <span className="text-[10px] text-emerald-700 font-bold ml-1">
                         (₹0 on ₹{freeDeliveryMinOrder}+)
