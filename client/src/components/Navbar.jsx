@@ -70,7 +70,7 @@ export default function Navbar() {
             🚀 Fresh groceries, vegetables, fast food & fruits delivered within 0 to {settings?.max_radius_km || 10} km!
           </span>
         </div>
-        <div className="hidden md:flex items-center gap-4 shrink-0 text-white/90">
+        <div className="hidden md:flex items-center gap-3 shrink-0 text-white/90">
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full inline-block ${!storeStatus.isOpen ? 'bg-rose-400 animate-pulse' : 'bg-emerald-400'}`} />
             <span>
@@ -79,6 +79,15 @@ export default function Navbar() {
                 : `Open Now: ${storeStatus.openFormatted} – ${storeStatus.closeFormatted}`}
             </span>
           </div>
+          <a
+            href="https://play.google.com/store/apps/details?id=in.ghartakkart.app&pcampaignid=web_share"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1 bg-yellow-400 hover:bg-yellow-300 text-gray-950 font-black px-2.5 py-0.5 rounded-full text-[11px] shadow-sm transition-all"
+            title="Download GharTak Kart App on Google Play Store"
+          >
+            <span>📱 Download App</span>
+          </a>
           <a
             href={`https://wa.me/917017675784?text=${encodeURIComponent('Hello GhartakKart! I need help with my order / products.')}`}
             target="_blank"
@@ -244,8 +253,23 @@ export default function Navbar() {
           </div>
         )}
 
-        {/* Right Actions: Stamp Offer, Offer Zone, Login, Cart */}
+        {/* Right Actions: App Download, Stamp Offer, Offer Zone, Login, Cart */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Download Official App Link */}
+          {!adminMode && (
+            <a
+              href="https://play.google.com/store/apps/details?id=in.ghartakkart.app&pcampaignid=web_share"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 px-2 py-1 sm:px-2.5 sm:py-1.5 rounded-xl bg-gray-900 hover:bg-black text-white font-extrabold text-[11px] sm:text-xs shadow-xs active:scale-95 transition-all cursor-pointer shrink-0 border border-gray-700"
+              title="Download GharTak Kart App on Google Play Store"
+            >
+              <svg className="w-3.5 h-3.5 text-emerald-400 shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M3.609 1.814L13.792 12 3.61 22.186a1.94 1.94 0 0 1-.22-.916V2.73c0-.337.078-.654.22-.916zm11.24 11.24l2.128 2.128-10.74 6.202 8.612-8.33zm0-2.108L6.237 2.614l10.74 6.202-2.128 2.13zM15.906 12l2.67-1.542c.813-.47.813-1.229 0-1.698L15.906 12zm0 0l2.67 1.542c.813.47.813 1.229 0 1.698L15.906 12z"/>
+              </svg>
+              <span className="hidden xs:inline">App</span>
+            </a>
+          )}
           {/* Stamp Loyalty Offer Button */}
           {!adminMode && (
             <button

@@ -79,20 +79,6 @@ export default function App() {
     setIsAuthModalOpen
   } = useStore();
 
-  // Auto-popup Login modal for first-time visitors
-  useEffect(() => {
-    try {
-      const hasSeenAutoLogin = sessionStorage.getItem('gk_auto_login_popup_seen');
-      if (!hasSeenAutoLogin && (!customerUser || !customerUser.isLoggedIn)) {
-        sessionStorage.setItem('gk_auto_login_popup_seen', 'true');
-        const timer = setTimeout(() => {
-          setIsAuthModalOpen(true);
-        }, 1200);
-        return () => clearTimeout(timer);
-      }
-    } catch {}
-  }, [customerUser, setIsAuthModalOpen]);
-
   const [nowTick, setNowTick] = useState(() => new Date());
   useEffect(() => {
     const timer = setInterval(() => setNowTick(new Date()), 15000);
@@ -599,6 +585,49 @@ export default function App() {
                   <ChevronRight className="w-3 h-3" />
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Official Google Play Store App Download Banner */}
+          <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 mt-2.5">
+            <div className="rounded-2xl bg-gradient-to-r from-gray-950 via-brand-950 to-gray-900 p-3 sm:p-4 text-white shadow-md border border-brand-500/30 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0 w-full sm:w-auto">
+                <img
+                  src={settings?.store_logo || '/logo.jpg'}
+                  alt="GharTak Kart App"
+                  onError={(e) => { e.currentTarget.src = '/logo.jpg'; }}
+                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl border-2 border-emerald-400 shadow-sm shrink-0 object-cover"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="bg-emerald-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full tracking-wider shadow-xs">
+                      Official Android App
+                    </span>
+                    <span className="text-yellow-300 text-[11px] font-bold">
+                      ⭐⭐⭐⭐⭐ 5.0 Rating
+                    </span>
+                  </div>
+                  <h3 className="text-xs sm:text-sm font-black text-white mt-0.5 truncate">
+                    Install GharTak Kart App from Google Play Store
+                  </h3>
+                  <p className="text-[10px] sm:text-[11px] text-gray-300 line-clamp-1">
+                    Faster ordering, live GPS rider tracking & exclusive app discounts!
+                  </p>
+                </div>
+              </div>
+
+              <a
+                href="https://play.google.com/store/apps/details?id=in.ghartakkart.app&pcampaignid=web_share"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full sm:w-auto px-4 py-2 sm:px-5 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-extrabold text-xs sm:text-sm rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 border border-emerald-300 cursor-pointer"
+                title="Download GharTak Kart Android App"
+              >
+                <svg className="w-4 h-4 text-white shrink-0" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3.609 1.814L13.792 12 3.61 22.186a1.94 1.94 0 0 1-.22-.916V2.73c0-.337.078-.654.22-.916zm11.24 11.24l2.128 2.128-10.74 6.202 8.612-8.33zm0-2.108L6.237 2.614l10.74 6.202-2.128 2.13zM15.906 12l2.67-1.542c.813-.47.813-1.229 0-1.698L15.906 12zm0 0l2.67 1.542c.813.47.813 1.229 0 1.698L15.906 12z"/>
+                </svg>
+                <span>Download App (Google Play)</span>
+              </a>
             </div>
           </div>
 
