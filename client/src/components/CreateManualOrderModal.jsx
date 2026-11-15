@@ -171,7 +171,7 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     }
   }, [manualDeliveryTimeInfo?.slotLabel]);
 
-  // Add Item to Order with variant support & optional custom quantity
+  // Add Item to Order with variant support & stock-aware quantity
   const handleAddItem = (prod, customQty = null, variantIdxOverride = null) => {
     const variants = getProductVariants(prod);
     const varIdx = variantIdxOverride !== null
@@ -179,17 +179,35 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
       : (selectedVariantIdx[prod.id] !== undefined ? selectedVariantIdx[prod.id] : 0);
     const activeVar = variants[varIdx] || variants[0];
 
-    const qtyToAdd = customQty !== null
+    const maxStock = activeVar.stock !== undefined
+      ? Number(activeVar.stock)
+      : (prod.stock !== undefined ? Number(prod.stock) : undefined);
+
+    if (maxStock !== undefined && maxStock <= 0) {
+      alert(`"${prod.name}" (${activeVar.unit}) is out of stock (Stock: 0).`);
+      return;
+    }
+
+    let qtyToAdd = customQty !== null
       ? Math.max(0.01, Number(customQty) || 1)
       : Math.max(0.01, Number(productStagingQtys[prod.id]) || 1);
+
+    if (maxStock !== undefined && maxStock > 0 && qtyToAdd > maxStock) {
+      qtyToAdd = maxStock;
+    }
 
     const targetId = variants.length > 1 ? `${prod.id}__${activeVar.id || activeVar.unit}` : prod.id;
 
     setOrderItems(prev => {
       const existing = prev.find(it => it.product_id === targetId);
       if (existing) {
+        let newQty = Number((existing.qty + qtyToAdd).toFixed(3));
+        if (maxStock !== undefined && maxStock > 0 && newQty > maxStock) {
+          alert(`Cannot add more than available stock (${maxStock}) for "${prod.name}".`);
+          newQty = maxStock;
+        }
         return prev.map(it =>
-          it.product_id === targetId ? { ...it, qty: Number((it.qty + qtyToAdd).toFixed(3)) } : it
+          it.product_id === targetId ? { ...it, qty: newQty } : it
         );
       }
       return [
@@ -204,6 +222,7 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
           unit: activeVar.unit || prod.unit || '1 unit',
           price: Number(activeVar.price) || Number(prod.price) || 0,
           purchase_price: Number(activeVar.purchase_price) || Number(prod.purchase_price) || 0,
+          stock: maxStock,
           qty: Number(qtyToAdd.toFixed(3)),
           is_custom: false,
           image: prod.image || ''
@@ -223,20 +242,30 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
           variant_id: newVar.id,
           unit: newVar.unit,
           price: Number(newVar.price) || it.price,
-          purchase_price: Number(newVar.purchase_price) || it.purchase_price || 0
+          purchase_price: Number(newVar.purchase_price) || it.purchase_price || 0,
+          stock: newVar.stock !== undefined ? Number(newVar.stock) : it.stock
         };
       })
     );
   };
 
-  // Update Item Quantity (supports decimal kg/grams like 0.25, 0.5, 1.5, etc.)
+  // Update Item Quantity (strictly respects maintained stock limit)
   const handleUpdateQty = (productId, newQty) => {
     const val = parseFloat(newQty);
     if (isNaN(val) || val <= 0) {
       setOrderItems(prev => prev.filter(it => it.product_id !== productId));
     } else {
       setOrderItems(prev =>
-        prev.map(it => (it.product_id === productId ? { ...it, qty: Number(val.toFixed(3)) } : it))
+        prev.map(it => {
+          if (it.product_id !== productId) return it;
+          let safeQty = Number(val.toFixed(3));
+          const maxStock = Number(it.stock);
+          if (!it.is_custom && !isNaN(maxStock) && maxStock > 0 && safeQty > maxStock) {
+            alert(`Only ${maxStock} units maintained in stock for "${it.name}".`);
+            safeQty = maxStock;
+          }
+          return { ...it, qty: safeQty };
+        })
       );
     }
   };
@@ -1086,7 +1115,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
                         <div>
                           <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
-                            Selling Price (बिक्री रेट ₹) *
+                            Selling Price (₹) *
                           </label>
                           <input
                             type="number"
@@ -1102,7 +1131,7 @@ Thank you for shopping with ${storeName}! 🙏`;
 
                         <div>
                           <label className="text-[10px] font-bold text-purple-900 block mb-0.5 flex items-center justify-between">
-                            <span>Purchase Rate (खरीद रेट ₹)</span>
+                            <span>Purchase Rate (₹)</span>
                             <span className="text-[9px] text-purple-600 font-normal">Wholesale Cost</span>
                           </label>
                           <input
@@ -1118,7 +1147,7 @@ Thank you for shopping with ${storeName}! 🙏`;
 
                         <div>
                           <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
-                            Quantity (मात्रा)
+                            Quantity
                           </label>
                           <div className="flex items-center gap-1.5">
                             <input
@@ -1152,12 +1181,20 @@ Thank you for shopping with ${storeName}! 🙏`;
                       const existing = orderItems.find(it => it.product_id === targetId);
                       const stagingQty = productStagingQtys[prod.id] || 1;
 
+                      const maxStock = activeVar.stock !== undefined
+                        ? Number(activeVar.stock)
+                        : (prod.stock !== undefined ? Number(prod.stock) : undefined);
+                      const isOutOfStock = maxStock !== undefined && maxStock <= 0;
+                      const allowedPresets = [1, 2, 3, 5, 10].filter(q => maxStock === undefined || q <= maxStock);
+
                       return (
                         <div
                           key={prod.id}
                           className={`p-2.5 rounded-xl border transition-all text-xs space-y-2 ${
                             existing
                               ? 'bg-emerald-50/80 border-emerald-300 shadow-2xs'
+                              : isOutOfStock
+                              ? 'bg-gray-100/70 border-gray-200 opacity-80'
                               : 'bg-gray-50/90 hover:bg-emerald-50/40 border-gray-200'
                           }`}
                         >
@@ -1181,28 +1218,32 @@ Thank you for shopping with ${storeName}! 🙏`;
                                   <span className="font-bold text-emerald-700 text-xs">₹{activeVar.price}</span>
                                   <span>•</span>
                                   <span className="font-semibold text-gray-500">{activeVar.unit}</span>
-                                  {activeVar.stock !== undefined && (
+                                  {maxStock !== undefined && (
                                     <span className={`px-1.5 py-0.2 rounded text-[10px] ${
-                                      Number(activeVar.stock) <= 0
+                                      isOutOfStock
                                         ? 'bg-rose-100 text-rose-800 font-bold'
-                                        : Number(activeVar.stock) <= 5
+                                        : maxStock <= 5
                                         ? 'bg-amber-100 text-amber-800 font-bold'
                                         : 'text-gray-400'
                                     }`}>
-                                      {Number(activeVar.stock) <= 0 ? 'Out of stock' : `Stock: ${activeVar.stock}`}
+                                      {isOutOfStock ? 'Out of stock (0)' : `Stock: ${maxStock}`}
                                     </span>
                                   )}
                                 </div>
                               </div>
                             </div>
 
-                            {/* Add Button or Cart Qty */}
+                            {/* Add Button, Out of Stock, or Cart Qty */}
                             <div className="shrink-0">
-                              {existing ? (
+                              {isOutOfStock ? (
+                                <span className="px-2.5 py-1 bg-rose-100 text-rose-800 border border-rose-200 rounded-lg font-bold text-[11px]">
+                                  Out of Stock
+                                </span>
+                              ) : existing ? (
                                 <div className="flex items-center gap-1 bg-emerald-600 text-white p-1 rounded-lg font-bold text-xs shadow-xs">
                                   <button
                                     type="button"
-                                    onClick={() => handleUpdateQty(targetId, Number((existing.qty - (existing.qty > 1 ? 1 : 0.25)).toFixed(2)))}
+                                    onClick={() => handleUpdateQty(targetId, existing.qty - 1)}
                                     className="w-5 h-5 flex items-center justify-center hover:bg-emerald-700 rounded font-black cursor-pointer"
                                     title="Decrease quantity"
                                   >
@@ -1210,17 +1251,19 @@ Thank you for shopping with ${storeName}! 🙏`;
                                   </button>
                                   <input
                                     type="number"
-                                    step="any"
-                                    min="0.01"
+                                    step="1"
+                                    min="1"
+                                    max={maxStock > 0 ? maxStock : undefined}
                                     value={existing.qty}
                                     onChange={(e) => handleUpdateQty(targetId, e.target.value)}
                                     className="w-12 text-center text-xs font-black text-emerald-950 bg-white rounded px-0.5 py-0.5 focus:outline-none"
-                                    title="Type exact quantity (e.g. 0.5, 1, 2.5)"
+                                    title="Choose quantity from stock"
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => handleUpdateQty(targetId, Number((existing.qty + (existing.qty >= 1 ? 1 : 0.25)).toFixed(2)))}
-                                    className="w-5 h-5 flex items-center justify-center hover:bg-emerald-700 rounded font-black cursor-pointer"
+                                    onClick={() => handleUpdateQty(targetId, existing.qty + 1)}
+                                    disabled={maxStock !== undefined && existing.qty >= maxStock}
+                                    className="w-5 h-5 flex items-center justify-center hover:bg-emerald-700 disabled:opacity-40 rounded font-black cursor-pointer"
                                     title="Increase quantity"
                                   >
                                     +
@@ -1239,10 +1282,10 @@ Thank you for shopping with ${storeName}! 🙏`;
                             </div>
                           </div>
 
-                          {/* Multi-Weight / Variant Selector (e.g. 500g, 1kg, 250g) */}
+                          {/* Multi-Weight / Variant Selector (configured in stock) */}
                           {variants.length > 1 && (
                             <div className="flex items-center gap-1 flex-wrap pt-1 border-t border-gray-200/60">
-                              <span className="text-[10px] text-gray-500 font-bold">Weight / Pack:</span>
+                              <span className="text-[10px] text-gray-500 font-bold">Stock Variant:</span>
                               {variants.map((v, idx) => (
                                 <button
                                   key={v.id || idx}
@@ -1256,69 +1299,85 @@ Thank you for shopping with ${storeName}! 🙏`;
                                 >
                                   <span>{v.unit}</span>
                                   <span className={idx === activeVarIdx ? 'text-amber-200' : 'text-emerald-700'}>₹{v.price}</span>
+                                  {v.stock !== undefined && (
+                                    <span className="text-[9px] opacity-75">({v.stock})</span>
+                                  )}
                                 </button>
                               ))}
                             </div>
                           )}
 
-                          {/* Quick Quantity Chooser for this item */}
-                          <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-gray-200/60">
-                            <div className="flex items-center gap-1 flex-wrap">
-                              <span className="text-[10px] text-gray-500 font-bold">Qty Choose:</span>
-                              {[0.25, 0.5, 1, 2, 3, 5, 10].map((preset) => {
-                                const isPresetActive = existing ? Number(existing.qty) === preset : stagingQty === preset;
-                                return (
+                          {/* Quick Quantity Chooser (strictly within maintained stock) */}
+                          {!isOutOfStock && (
+                            <div className="flex items-center justify-between gap-1.5 pt-1 border-t border-gray-200/60">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[10px] text-gray-500 font-bold">Qty:</span>
+                                {allowedPresets.map((preset) => {
+                                  const isPresetActive = existing ? Number(existing.qty) === preset : stagingQty === preset;
+                                  return (
+                                    <button
+                                      key={preset}
+                                      type="button"
+                                      onClick={() => {
+                                        if (existing) {
+                                          handleUpdateQty(targetId, preset);
+                                        } else {
+                                          setProductStagingQtys(prev => ({ ...prev, [prod.id]: preset }));
+                                          handleAddItem(prod, preset, activeVarIdx);
+                                        }
+                                      }}
+                                      className={`px-2 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
+                                        isPresetActive
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
+                                          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                      }`}
+                                    >
+                                      {preset}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Staging Stepper if not added yet */}
+                              {!existing && (
+                                <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden text-xs shrink-0">
                                   <button
-                                    key={preset}
+                                    type="button"
+                                    onClick={() => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Math.max(1, stagingQty - 1) }))}
+                                    className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-700 font-bold"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    step="1"
+                                    min="1"
+                                    max={maxStock > 0 ? maxStock : undefined}
+                                    value={stagingQty}
+                                    onChange={(e) => {
+                                      const val = Math.max(1, parseInt(e.target.value) || 1);
+                                      const bounded = (maxStock > 0 && val > maxStock) ? maxStock : val;
+                                      setProductStagingQtys(prev => ({ ...prev, [prod.id]: bounded }));
+                                    }}
+                                    className="w-9 text-center font-bold text-xs py-0.5 focus:outline-none"
+                                  />
+                                  <button
                                     type="button"
                                     onClick={() => {
-                                      if (existing) {
-                                        handleUpdateQty(targetId, preset);
-                                      } else {
-                                        setProductStagingQtys(prev => ({ ...prev, [prod.id]: preset }));
-                                        handleAddItem(prod, preset, activeVarIdx);
+                                      const next = stagingQty + 1;
+                                      if (maxStock === undefined || next <= maxStock) {
+                                        setProductStagingQtys(prev => ({ ...prev, [prod.id]: next }));
                                       }
                                     }}
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-black border transition-all cursor-pointer ${
-                                      isPresetActive
-                                        ? 'bg-emerald-600 text-white border-emerald-600 shadow-2xs'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
-                                    }`}
+                                    disabled={maxStock !== undefined && stagingQty >= maxStock}
+                                    className="px-1.5 py-0.5 hover:bg-gray-100 disabled:opacity-40 text-gray-700 font-bold"
                                   >
-                                    {preset >= 1 ? `${preset}` : `${preset * 1000}g`}
+                                    +
                                   </button>
-                                );
-                              })}
+                                </div>
+                              )}
                             </div>
-
-                            {/* Staging Stepper if not added yet */}
-                            {!existing && (
-                              <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden text-xs shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Math.max(0.25, Number(((stagingQty - (stagingQty > 1 ? 1 : 0.25))).toFixed(2))) }))}
-                                  className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-700 font-bold"
-                                >
-                                  -
-                                </button>
-                                <input
-                                  type="number"
-                                  step="any"
-                                  min="0.01"
-                                  value={stagingQty}
-                                  onChange={(e) => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Math.max(0.01, Number(e.target.value) || 1) }))}
-                                  className="w-9 text-center font-bold text-xs py-0.5 focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => setProductStagingQtys(prev => ({ ...prev, [prod.id]: Number(((stagingQty + (stagingQty >= 1 ? 1 : 0.25))).toFixed(2)) }))}
-                                  className="px-1.5 py-0.5 hover:bg-gray-100 text-gray-700 font-bold"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            )}
-                          </div>
+                          )}
                         </div>
                       );
                     })}
@@ -1425,7 +1484,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                               {/* Selling Price */}
                               <div>
                                 <label className="text-[9px] font-bold text-gray-600 block mb-0.5">
-                                  Selling Price (बिक्री रेट ₹)
+                                  Selling Price (₹)
                                 </label>
                                 <input
                                   type="number"
@@ -1440,7 +1499,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                               {/* Purchase Rate (Wholesale Cost) */}
                               <div>
                                 <label className="text-[9px] font-bold text-purple-900 block mb-0.5 flex items-center justify-between">
-                                  <span>Purchase Rate (खरीद रेट ₹)</span>
+                                  <span>Purchase Rate (₹)</span>
                                 </label>
                                 <input
                                   type="number"
@@ -1457,50 +1516,54 @@ Thank you for shopping with ${storeName}! 🙏`;
                               <div>
                                 <div className="flex items-center justify-between mb-0.5">
                                   <label className="text-[9px] font-bold text-gray-700">
-                                    Quantity (मात्रा)
+                                    Quantity
                                   </label>
-                                  <select
-                                    value={item.qty}
-                                    onChange={(e) => handleUpdateQty(item.product_id, e.target.value)}
-                                    className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded px-1 py-0.2 focus:outline-none cursor-pointer"
-                                    title="Choose quantity from presets"
-                                  >
-                                    <option value="0.25">0.25 (250g)</option>
-                                    <option value="0.5">0.5 (500g)</option>
-                                    <option value="0.75">0.75 (750g)</option>
-                                    <option value="1">1 Unit / 1 kg</option>
-                                    <option value="1.5">1.5</option>
-                                    <option value="2">2 Units / 2 kg</option>
-                                    <option value="2.5">2.5</option>
-                                    <option value="3">3 Units / 3 kg</option>
-                                    <option value="4">4 Units</option>
-                                    <option value="5">5 Units / 5 kg</option>
-                                    <option value="10">10 Units / 10 kg</option>
-                                    {![0.25, 0.5, 0.75, 1, 1.5, 2, 2.5, 3, 4, 5, 10].includes(Number(item.qty)) && (
-                                      <option value={item.qty}>{item.qty} (Custom)</option>
-                                    )}
-                                  </select>
+                                  {(() => {
+                                    const parentProd = products?.find(p => p.id === item.base_product_id);
+                                    const parentVariants = parentProd ? getProductVariants(parentProd) : [];
+                                    const matchedVar = parentVariants.find(v => v.unit === item.unit) || parentVariants[0];
+                                    const itemStock = item.is_custom ? undefined : Number(matchedVar?.stock !== undefined ? matchedVar.stock : (item.stock ?? parentProd?.stock));
+                                    const allowedQtys = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20].filter(q => itemStock === undefined || isNaN(itemStock) || q <= itemStock);
+
+                                    return (
+                                      <select
+                                        value={item.qty}
+                                        onChange={(e) => handleUpdateQty(item.product_id, e.target.value)}
+                                        className="text-[9px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 rounded px-1.5 py-0.5 focus:outline-none cursor-pointer"
+                                        title="Choose quantity from stock"
+                                      >
+                                        {allowedQtys.map(q => (
+                                          <option key={q} value={q}>{q} {item.unit ? `(${item.unit})` : ''}</option>
+                                        ))}
+                                        {!allowedQtys.includes(Number(item.qty)) && (
+                                          <option value={item.qty}>{item.qty} {item.unit ? `(${item.unit})` : ''}</option>
+                                        )}
+                                      </select>
+                                    );
+                                  })()}
                                 </div>
                                 <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden">
                                   <button
                                     type="button"
-                                    onClick={() => handleUpdateQty(item.product_id, Number((item.qty - (item.qty > 1 ? 1 : 0.25)).toFixed(2)))}
+                                    onClick={() => handleUpdateQty(item.product_id, Math.max(1, item.qty - 1))}
                                     className="px-2 py-1 hover:bg-gray-100 text-gray-700 font-black cursor-pointer text-xs"
                                   >
                                     -
                                   </button>
                                   <input
                                     type="number"
-                                    step="any"
-                                    min="0.01"
+                                    step="1"
+                                    min="1"
+                                    max={item.stock > 0 ? item.stock : undefined}
                                     value={item.qty}
                                     onChange={(e) => handleUpdateQty(item.product_id, e.target.value)}
                                     className="w-full text-center font-black text-xs text-gray-900 py-1 focus:outline-none border-x border-gray-200"
                                   />
                                   <button
                                     type="button"
-                                    onClick={() => handleUpdateQty(item.product_id, Number((item.qty + (item.qty >= 1 ? 1 : 0.25)).toFixed(2)))}
-                                    className="px-2 py-1 hover:bg-gray-100 text-gray-700 font-black cursor-pointer text-xs"
+                                    onClick={() => handleUpdateQty(item.product_id, item.qty + 1)}
+                                    disabled={!item.is_custom && item.stock !== undefined && item.qty >= item.stock}
+                                    className="px-2 py-1 hover:bg-gray-100 disabled:opacity-40 text-gray-700 font-black cursor-pointer text-xs"
                                   >
                                     +
                                   </button>
@@ -1512,21 +1575,30 @@ Thank you for shopping with ${storeName}! 🙏`;
                             <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
                               {/* Quick Quantity Presets */}
                               <div className="flex items-center gap-1 flex-wrap">
-                                <span className="text-[9px] text-gray-400 font-bold">Quick:</span>
-                                {[0.25, 0.5, 0.75, 1, 2, 3, 5, 10].map((preset) => (
-                                  <button
-                                    key={preset}
-                                    type="button"
-                                    onClick={() => handleUpdateQty(item.product_id, preset)}
-                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer ${
-                                      Number(item.qty) === preset
-                                        ? 'bg-emerald-600 text-white border-emerald-600'
-                                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
-                                    }`}
-                                  >
-                                    {preset >= 1 ? `${preset}` : `${preset * 1000}g`}
-                                  </button>
-                                ))}
+                                <span className="text-[9px] text-gray-400 font-bold">Qty:</span>
+                                {(() => {
+                                  const itemStock = item.is_custom ? undefined : Number(item.stock);
+                                  const allowedPresets = [1, 2, 3, 5, 10].filter(q => itemStock === undefined || isNaN(itemStock) || q <= itemStock);
+                                  return allowedPresets.map((preset) => (
+                                    <button
+                                      key={preset}
+                                      type="button"
+                                      onClick={() => handleUpdateQty(item.product_id, preset)}
+                                      className={`px-2 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer ${
+                                        Number(item.qty) === preset
+                                          ? 'bg-emerald-600 text-white border-emerald-600'
+                                          : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                      }`}
+                                    >
+                                      {preset}
+                                    </button>
+                                  ));
+                                })()}
+                                {!item.is_custom && item.stock !== undefined && Number(item.qty) >= Number(item.stock) && (
+                                  <span className="text-[10px] text-amber-700 font-bold bg-amber-50 px-1 py-0.2 rounded border border-amber-200">
+                                    Stock Max: {item.stock}
+                                  </span>
+                                )}
                               </div>
 
                               {/* Line Subtotal and Margin */}
