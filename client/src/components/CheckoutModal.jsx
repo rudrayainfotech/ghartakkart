@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import {
@@ -30,7 +30,7 @@ import {
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playChime } from '../utils/sound.js';
-import { getStoreOperatingStatus, calculateHaversineDistance } from '../utils/haversine.js';
+import { getStoreOperatingStatus, calculateHaversineDistance, calculateDeliveryTime } from '../utils/haversine.js';
 import ScratchCard from './ScratchCard.jsx';
 
 export default function CheckoutModal() {
@@ -169,6 +169,22 @@ export default function CheckoutModal() {
   const userLng = Number(userLocation?.lng) || storeLng;
   const effectiveDistanceKm = calculateHaversineDistance(storeLat, storeLng, userLat, userLng);
   const isOutOfRadius = effectiveDistanceKm > maxRadiusKm || userLocation?.deliverable === false;
+
+  // Dynamic Delivery Timing calculation based on customer distance AND cart categories (cooking/packing)
+  const deliveryTimingInfo = useMemo(() => {
+    return calculateDeliveryTime({
+      distanceKm: effectiveDistanceKm,
+      items: cart,
+      settings
+    });
+  }, [effectiveDistanceKm, cart, settings]);
+
+  // Keep delivery slot state synced with calculated dynamic delivery timing
+  useEffect(() => {
+    if (deliveryTimingInfo?.slotLabel) {
+      setDeliverySlot(deliveryTimingInfo.slotLabel);
+    }
+  }, [deliveryTimingInfo?.slotLabel]);
 
   // Milestone Free Gift Selection State (149, 249, 349+ tiers, 3 options per tier)
   const activeMilestones = (milestoneGifts || [])
@@ -1584,6 +1600,64 @@ export default function CheckoutModal() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* Dynamic Estimated Delivery Timing Card (Distance + Category Prep Time) */}
+              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50/60 rounded-2xl p-4 border border-emerald-200 shadow-xs space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shadow-sm shrink-0">
+                      <Clock className="w-4 h-4 text-white" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-black text-gray-900 text-sm">
+                          ⚡ Estimated Delivery: {deliveryTimingInfo.summaryBadge}
+                        </span>
+                        <span className="bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                          Dynamic ETA
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-600 mt-0.5">
+                        Distance ({deliveryTimingInfo.distanceKm.toFixed(1)} km) + {deliveryTimingInfo.prepCategoryLabel}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-200/70 text-xs">
+                  <div className="flex items-center gap-2 bg-white/90 p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="text-base">🏍️</span>
+                    <div className="min-w-0">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Transit Travel Time</p>
+                      <p className="font-extrabold text-gray-800 text-xs">
+                        ~{deliveryTimingInfo.transitMin}–{deliveryTimingInfo.transitMax} mins ({deliveryTimingInfo.distanceKm.toFixed(1)} km)
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-white/90 p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
+                    <span className="text-base">{deliveryTimingInfo.hasFastFood ? '🍳' : deliveryTimingInfo.hasFreshProduce ? '🥗' : '📦'}</span>
+                    <div className="min-w-0">
+                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{deliveryTimingInfo.prepCategoryLabel}</p>
+                      <p className="font-extrabold text-emerald-800 text-xs">
+                        ~{deliveryTimingInfo.prepMin}–{deliveryTimingInfo.prepMax} mins {deliveryTimingInfo.hasFastFood ? '(Kitchen Cooking)' : '(Picking & Packing)'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {deliveryTimingInfo.hasFastFood ? (
+                  <div className="text-[11px] font-bold text-amber-950 bg-amber-100/80 p-2 rounded-xl border border-amber-300 flex items-center gap-2">
+                    <span className="text-base shrink-0">🍔</span>
+                    <span>Contains freshly cooked Fast Food! Total time includes kitchen preparation + transit for hot & crisp delivery.</span>
+                  </div>
+                ) : deliveryTimingInfo.hasFreshProduce ? (
+                  <div className="text-[11px] font-bold text-teal-950 bg-teal-100/70 p-2 rounded-xl border border-teal-300 flex items-center gap-2">
+                    <span className="text-base shrink-0">🥗</span>
+                    <span>Includes fresh produce / sweets. Carefully weighed & packed before rider dispatch.</span>
+                  </div>
+                ) : null}
               </div>
 
               {/* Customer Contact Details */}

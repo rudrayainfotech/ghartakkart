@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useStore } from '../context/StoreContext.jsx';
 import {
   X,
@@ -13,7 +13,7 @@ import {
   Sparkles,
   Clock
 } from 'lucide-react';
-import { formatCurrency, getStoreOperatingStatus } from '../utils/haversine.js';
+import { formatCurrency, getStoreOperatingStatus, calculateDeliveryTime } from '../utils/haversine.js';
 
 export default function CartDrawer() {
   const {
@@ -153,6 +153,15 @@ export default function CartDrawer() {
   const meetsMinOrder = cartSubtotal >= minOrderRequired;
   const shortfall = Math.max(0, minOrderRequired - cartSubtotal);
 
+  // Dynamic Delivery Timing based on distance and cart items (kitchen / packing prep)
+  const deliveryTimingInfo = useMemo(() => {
+    return calculateDeliveryTime({
+      distanceKm: userLocation.distance_km || 1,
+      items: cart,
+      settings
+    });
+  }, [userLocation.distance_km, cart, settings]);
+
   const canCheckout = cart.length > 0 && !isOutOfZone && meetsMinOrder;
 
   return (
@@ -229,6 +238,24 @@ export default function CartDrawer() {
               </button>
             </div>
           </div>
+
+          {/* Dynamic ETA banner (Distance + Category Prep) */}
+          {cart.length > 0 && !isOutOfZone && (
+            <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 border-b border-emerald-200 px-4 py-2 flex items-center justify-between text-xs text-emerald-950 font-bold shadow-2xs">
+              <span className="flex items-center gap-1.5 truncate">
+                <span className="text-sm">⚡</span>
+                <span>Delivery in <strong>{deliveryTimingInfo.summaryBadge}</strong></span>
+                <span className="text-[10px] text-emerald-700 font-medium hidden sm:inline">
+                  ({deliveryTimingInfo.distanceKm.toFixed(1)} km · {deliveryTimingInfo.prepCategoryLabel})
+                </span>
+              </span>
+              {deliveryTimingInfo.hasFastFood && (
+                <span className="text-[10px] bg-amber-200 text-amber-950 font-black px-1.5 py-0.5 rounded shrink-0">
+                  🍳 Hot Food Prep
+                </span>
+              )}
+            </div>
+          )}
 
           {/* Out of zone warning banner */}
           {isOutOfZone && (

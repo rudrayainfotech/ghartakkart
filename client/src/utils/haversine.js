@@ -130,4 +130,111 @@ export function getStoreOperatingStatus(settings, now = new Date()) {
   };
 }
 
+/**
+ * Calculate dynamic delivery time (ETA) based on distance (km) and items/categories in cart
+ * e.g., Fast Food adds 15-22 mins preparation/cooking time + distance transit time (e.g. 8 km = ~26-34 mins transit).
+ * Total for 8km Fast Food = ~40 to 55 minutes.
+ */
+export function calculateDeliveryTime({ distanceKm = 1, items = [], settings = null }) {
+  const dist = Math.max(0.1, Math.min(50, Number(distanceKm) || 1));
+
+  // 1. Road Transit Time: hyperlocal 2-wheeler speed in Khair / Aligarh bypass (~3 to 4.2 mins/km + initial dispatch buffer)
+  const transitMin = Math.max(4, Math.round(dist * 3.2));
+  const transitMax = Math.max(7, Math.round(dist * 4.2) + 3);
+
+  // 2. Kitchen / Preparation Time by Category & Item keywords
+  let maxPrepMin = 5;
+  let maxPrepMax = 10;
+  let prepCategoryLabel = 'Express Store Picking & Packing';
+  let hasFastFood = false;
+  let hasFreshProduce = false;
+
+  const itemList = Array.isArray(items) ? items : [];
+
+  for (const it of itemList) {
+    if (!it) continue;
+    const cat = String(it.category || it.category_id || it.category_name || '').toLowerCase();
+    const name = String(it.name || '').toLowerCase();
+    const subcat = String(it.subcategory || '').toLowerCase();
+
+    // Check for Hot Fast Food / Kitchen cooked items
+    const isFastFood =
+      cat.includes('fast food') ||
+      cat.includes('hot fast food') ||
+      cat.includes('cat-5') ||
+      cat.includes('kitchen') ||
+      cat.includes('restaurant') ||
+      cat.includes('cooked') ||
+      name.includes('burger') ||
+      name.includes('pizza') ||
+      name.includes('momo') ||
+      name.includes('chowmein') ||
+      name.includes('noodle') ||
+      name.includes('roll') ||
+      name.includes('sandwich') ||
+      name.includes('french fry') ||
+      name.includes('patty') ||
+      name.includes('chaat') ||
+      name.includes('maggi') ||
+      subcat.includes('burger') ||
+      subcat.includes('pizza') ||
+      subcat.includes('momo') ||
+      subcat.includes('chowmein');
+
+    if (isFastFood) {
+      hasFastFood = true;
+      if (maxPrepMin < 15) {
+        maxPrepMin = 15;
+        maxPrepMax = 22;
+        prepCategoryLabel = 'Fast Food Kitchen Cooking';
+      }
+    } else if (
+      cat.includes('veg') ||
+      cat.includes('fruit') ||
+      cat.includes('fresh') ||
+      cat.includes('cat-2') ||
+      cat.includes('bikaner') ||
+      cat.includes('sweet') ||
+      cat.includes('dairy') ||
+      subcat.includes('veg') ||
+      subcat.includes('fruit')
+    ) {
+      hasFreshProduce = true;
+      if (maxPrepMin < 8 && !hasFastFood) {
+        maxPrepMin = 8;
+        maxPrepMax = 14;
+        prepCategoryLabel = 'Fresh Weighed & Packed';
+      }
+    }
+  }
+
+  // 3. Combined Total Delivery Time
+  const combinedMin = transitMin + maxPrepMin;
+  const combinedMax = transitMax + maxPrepMax;
+
+  // Round to clean, customer-friendly 5-minute increments (e.g. 15-25 mins, 35-45 mins, 40-50 mins)
+  const friendlyMin = Math.max(10, Math.round(combinedMin / 5) * 5);
+  const friendlyMax = Math.max(friendlyMin + 5, Math.round(combinedMax / 5) * 5);
+
+  const slotLabel = `Express (${friendlyMin}-${friendlyMax} Mins)`;
+  const summaryBadge = `${friendlyMin}-${friendlyMax} mins`;
+  const detailText = `${friendlyMin}-${friendlyMax} mins (${dist.toFixed(1)} km · ${hasFastFood ? 'Fast Food Prep + Travel' : hasFreshProduce ? 'Fresh Packing + Travel' : 'Express Delivery'})`;
+
+  return {
+    distanceKm: dist,
+    transitMin,
+    transitMax,
+    prepMin: maxPrepMin,
+    prepMax: maxPrepMax,
+    prepCategoryLabel,
+    hasFastFood,
+    hasFreshProduce,
+    totalMin: friendlyMin,
+    totalMax: friendlyMax,
+    slotLabel,
+    summaryBadge,
+    detailText
+  };
+}
+
 

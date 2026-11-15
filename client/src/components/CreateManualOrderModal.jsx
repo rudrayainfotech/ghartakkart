@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
+import { calculateDeliveryTime } from '../utils/haversine.js';
 import {
   X,
   Search,
@@ -75,6 +76,7 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
   const [customItemName, setCustomItemName] = useState('');
   const [customItemUnit, setCustomItemUnit] = useState('1 Pack');
   const [customItemPrice, setCustomItemPrice] = useState('');
+  const [customItemPurchasePrice, setCustomItemPurchasePrice] = useState('');
   const [customItemQty, setCustomItemQty] = useState('1');
 
   // Pricing Overrides
@@ -111,6 +113,12 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     return orderItems.reduce((sum, it) => sum + (Number(it.price) || 0) * (Number(it.qty) || 1), 0);
   }, [orderItems]);
 
+  const totalCost = useMemo(() => {
+    return orderItems.reduce((sum, it) => sum + (Number(it.purchase_price) || 0) * (Number(it.qty) || 1), 0);
+  }, [orderItems]);
+
+  const estimatedMargin = Math.max(0, subtotal - totalCost);
+
   const grandTotal = Math.max(0, subtotal + Number(deliveryFee || 0) - Number(discountAmount || 0));
 
   // Determine eligible milestone gift tiers
@@ -119,13 +127,30 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     return milestoneGifts.filter(tier => tier && tier.active !== false && subtotal >= Number(tier.min_amount || 0));
   }, [milestoneGifts, subtotal]);
 
-  // Add Item to Order
-  const handleAddItem = (prod) => {
+  // Dynamic Delivery Timing calculation based on items & distance
+  const manualDeliveryTimeInfo = useMemo(() => {
+    return calculateDeliveryTime({
+      distanceKm: 1.5,
+      items: orderItems,
+      settings
+    });
+  }, [orderItems, settings]);
+
+  // Keep delivery slot synced with recommended calculated timing by default
+  useEffect(() => {
+    if (manualDeliveryTimeInfo?.slotLabel && deliverySlot.startsWith('Express')) {
+      setDeliverySlot(manualDeliveryTimeInfo.slotLabel);
+    }
+  }, [manualDeliveryTimeInfo?.slotLabel]);
+
+  // Add Item to Order with optional custom quantity
+  const handleAddItem = (prod, customQty = 1) => {
+    const qtyToAdd = Math.max(0.1, Number(customQty) || 1);
     setOrderItems(prev => {
       const existing = prev.find(it => it.product_id === prod.id);
       if (existing) {
         return prev.map(it =>
-          it.product_id === prod.id ? { ...it, qty: it.qty + 1 } : it
+          it.product_id === prod.id ? { ...it, qty: Number((it.qty + qtyToAdd).toFixed(2)) } : it
         );
       }
       return [
@@ -134,10 +159,12 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
           product_id: prod.id,
           base_product_id: prod.base_product_id || prod.id,
           name: prod.name,
+          category: prod.category || '',
+          category_id: prod.category_id || '',
           unit: prod.unit || '1 unit',
           price: Number(prod.price) || 0,
           purchase_price: Number(prod.purchase_price) || 0,
-          qty: 1,
+          qty: qtyToAdd,
           is_custom: false,
           image: prod.image || ''
         }
@@ -145,15 +172,39 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     });
   };
 
-  // Update Item Quantity
+  // Update Item Quantity (supports decimal kg/grams like 0.25, 0.5, 1.5, etc.)
   const handleUpdateQty = (productId, newQty) => {
-    if (newQty <= 0) {
+    const val = parseFloat(newQty);
+    if (isNaN(val) || val <= 0) {
       setOrderItems(prev => prev.filter(it => it.product_id !== productId));
     } else {
       setOrderItems(prev =>
-        prev.map(it => (it.product_id === productId ? { ...it, qty: newQty } : it))
+        prev.map(it => (it.product_id === productId ? { ...it, qty: Number(val.toFixed(3)) } : it))
       );
     }
+  };
+
+  // Update Item Selling Price
+  const handleUpdatePrice = (productId, newPrice) => {
+    const val = Math.max(0, parseFloat(newPrice) || 0);
+    setOrderItems(prev =>
+      prev.map(it => (it.product_id === productId ? { ...it, price: val } : it))
+    );
+  };
+
+  // Update Item Purchase Rate / Cost Price
+  const handleUpdatePurchasePrice = (productId, newPurchasePrice) => {
+    const val = Math.max(0, parseFloat(newPurchasePrice) || 0);
+    setOrderItems(prev =>
+      prev.map(it => (it.product_id === productId ? { ...it, purchase_price: val } : it))
+    );
+  };
+
+  // Update Item Unit
+  const handleUpdateUnit = (productId, newUnit) => {
+    setOrderItems(prev =>
+      prev.map(it => (it.product_id === productId ? { ...it, unit: newUnit } : it))
+    );
   };
 
   // Remove Item
@@ -161,7 +212,7 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     setOrderItems(prev => prev.filter(it => it.product_id !== productId));
   };
 
-  // Add Custom / Unlisted Item
+  // Add Custom / Unlisted Item (with Purchase Rate & Qty)
   const handleAddCustomItem = (e) => {
     e.preventDefault();
     if (!customItemName.trim()) {
@@ -170,10 +221,11 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
     }
     const priceNum = Number(customItemPrice) || 0;
     if (priceNum <= 0) {
-      alert('Please enter a valid price for the custom item');
+      alert('Please enter a valid selling price for the custom item');
       return;
     }
-    const qtyNum = Math.max(1, Number(customItemQty) || 1);
+    const purchasePriceNum = Math.max(0, Number(customItemPurchasePrice) || 0);
+    const qtyNum = Math.max(0.01, Number(customItemQty) || 1);
     const customId = `custom-${Date.now()}`;
 
     setOrderItems(prev => [
@@ -184,8 +236,8 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
         name: customItemName.trim(),
         unit: customItemUnit.trim() || '1 item',
         price: priceNum,
-        purchase_price: 0,
-        qty: qtyNum,
+        purchase_price: purchasePriceNum,
+        qty: Number(qtyNum.toFixed(3)),
         is_custom: true,
         image: ''
       }
@@ -193,6 +245,7 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
 
     setCustomItemName('');
     setCustomItemPrice('');
+    setCustomItemPurchasePrice('');
     setCustomItemQty('1');
     setShowCustomItemForm(false);
   };
@@ -684,16 +737,30 @@ Thank you for shopping with ${storeName}! 🙏`;
                     </div>
 
                     <div>
-                      <label className="text-[11px] font-bold text-gray-700 block mb-1">
-                        Delivery Slot
-                      </label>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-bold text-gray-700 block">
+                          Delivery Slot & Timing
+                        </label>
+                        {manualDeliveryTimeInfo?.hasFastFood && (
+                          <span className="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">
+                            🍔 Fast Food Cooking Time Included
+                          </span>
+                        )}
+                      </div>
                       <select
                         value={deliverySlot}
                         onChange={(e) => setDeliverySlot(e.target.value)}
-                        className="w-full px-2.5 py-2 text-xs font-medium bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
+                        className="w-full px-2.5 py-2 text-xs font-bold text-gray-900 bg-emerald-50/50 border border-emerald-300 rounded-xl focus:bg-white focus:outline-none focus:border-emerald-500"
                       >
+                        {manualDeliveryTimeInfo?.slotLabel && (
+                          <option value={manualDeliveryTimeInfo.slotLabel}>
+                            ⚡ {manualDeliveryTimeInfo.slotLabel} — Recommended ({manualDeliveryTimeInfo.prepCategoryLabel})
+                          </option>
+                        )}
                         <option value="Express (15-25 Mins)">⚡ Express (15-25 Mins)</option>
-                        <option value="Immediate / ASAP">🚀 Immediate / ASAP</option>
+                        <option value="Express (25-35 Mins)">⚡ Express (25-35 Mins)</option>
+                        <option value="Express (35-50 Mins)">🍔 Express (35-50 Mins - Fast Food & Outstation)</option>
+                        <option value="Immediate / ASAP">🚀 Immediate / ASAP (10-20 Mins)</option>
                         <option value="Morning Slot (8 AM - 12 PM)">🌅 Morning (8 AM - 12 PM)</option>
                         <option value="Evening Slot (4 PM - 9 PM)">🌇 Evening (4 PM - 9 PM)</option>
                         <option value="Counter Pickup / Takeaway">🏪 Store Pickup / Takeaway</option>
@@ -898,55 +965,118 @@ Thank you for shopping with ${storeName}! 🙏`;
                   {showCustomItemForm && (
                     <form
                       onSubmit={handleAddCustomItem}
-                      className="bg-amber-50/70 border border-amber-300 rounded-xl p-3 space-y-2 animate-in fade-in duration-150"
+                      className="bg-amber-50/80 border-2 border-amber-300 rounded-2xl p-3.5 space-y-3 animate-in fade-in duration-150 shadow-sm"
                     >
-                      <div className="flex items-center justify-between text-xs font-black text-amber-900">
-                        <span>🪄 Add Special / Unlisted Item</span>
+                      <div className="flex items-center justify-between text-xs font-black text-amber-950">
+                        <span className="flex items-center gap-1.5">
+                          <span>🪄 Add Out-of-Stock / Special Item with Purchase Rate</span>
+                        </span>
                         <button
                           type="button"
                           onClick={() => setShowCustomItemForm(false)}
-                          className="text-gray-400 hover:text-gray-600 text-xs"
+                          className="text-gray-400 hover:text-gray-600 text-xs p-1"
                         >
                           ✕
                         </button>
                       </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                        <div className="sm:col-span-2">
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
+                            Item Name *
+                          </label>
                           <input
                             type="text"
                             value={customItemName}
                             onChange={(e) => setCustomItemName(e.target.value)}
-                            placeholder="Item Name (e.g. Fresh Paneer)"
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-none"
+                            placeholder="e.g. Fresh Paneer / Samosa / Extra Kirana"
+                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-amber-500 font-semibold"
                             required
                           />
                         </div>
+
                         <div>
-                          <input
-                            type="text"
-                            value={customItemUnit}
-                            onChange={(e) => setCustomItemUnit(e.target.value)}
-                            placeholder="Unit (e.g. 500g)"
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-none"
-                          />
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
+                            Unit / Packing (e.g. 1 kg, 500g, 1 Pack)
+                          </label>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="text"
+                              value={customItemUnit}
+                              onChange={(e) => setCustomItemUnit(e.target.value)}
+                              placeholder="1 Pack"
+                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-none"
+                            />
+                            <div className="flex gap-1 shrink-0">
+                              {['1 kg', '500g', '250g', '1 Pack', '1 Pc'].map((u) => (
+                                <button
+                                  key={u}
+                                  type="button"
+                                  onClick={() => setCustomItemUnit(u)}
+                                  className="px-1.5 py-1 rounded text-[9px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300"
+                                >
+                                  {u}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1">
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
+                            Selling Price (बिक्री रेट ₹) *
+                          </label>
                           <input
                             type="number"
-                            min="1"
+                            min="0"
                             step="any"
                             value={customItemPrice}
                             onChange={(e) => setCustomItemPrice(e.target.value)}
-                            placeholder="Price (₹)"
-                            className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg focus:outline-none"
+                            placeholder="₹ Selling Price"
+                            className="w-full px-2.5 py-1.5 text-xs font-bold text-gray-900 bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-emerald-500"
                             required
                           />
-                          <button
-                            type="submit"
-                            className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-lg shrink-0 cursor-pointer shadow-xs"
-                          >
-                            Add
-                          </button>
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-purple-900 block mb-0.5 flex items-center justify-between">
+                            <span>Purchase Rate (खरीद रेट ₹)</span>
+                            <span className="text-[9px] text-purple-600 font-normal">Wholesale Cost</span>
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={customItemPurchasePrice}
+                            onChange={(e) => setCustomItemPurchasePrice(e.target.value)}
+                            placeholder="₹ Cost Price"
+                            className="w-full px-2.5 py-1.5 text-xs font-bold text-purple-900 bg-purple-50/70 border border-purple-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-purple-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="text-[10px] font-bold text-gray-700 block mb-0.5">
+                            Quantity (मात्रा)
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min="0.01"
+                              step="any"
+                              value={customItemQty}
+                              onChange={(e) => setCustomItemQty(e.target.value)}
+                              placeholder="1"
+                              className="w-full px-2.5 py-1.5 text-xs font-black text-gray-900 bg-white border border-amber-300 rounded-lg focus:outline-none"
+                            />
+                            <button
+                              type="submit"
+                              className="px-4 py-1.5 bg-gradient-to-r from-amber-600 to-emerald-600 hover:from-amber-700 hover:to-emerald-700 text-white font-extrabold text-xs rounded-lg shrink-0 cursor-pointer shadow-md transition-all"
+                            >
+                              + Add Item
+                            </button>
+                          </div>
                         </div>
                       </div>
                     </form>
@@ -990,19 +1120,29 @@ Thank you for shopping with ${storeName}! 🙏`;
 
                           <div>
                             {existing ? (
-                              <div className="flex items-center gap-1.5 bg-emerald-600 text-white px-2 py-1 rounded-lg font-bold text-xs shadow-xs">
+                              <div className="flex items-center gap-1 bg-emerald-50 border border-emerald-300 rounded-lg p-0.5 shadow-xs">
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateQty(prod.id, existing.qty - 1)}
-                                  className="w-4 h-4 flex items-center justify-center hover:bg-emerald-700 rounded cursor-pointer"
+                                  className="w-5 h-6 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-800 rounded font-bold cursor-pointer"
+                                  title="Decrease quantity"
                                 >
                                   -
                                 </button>
-                                <span className="w-4 text-center">{existing.qty}</span>
+                                <input
+                                  type="number"
+                                  step="any"
+                                  min="0.01"
+                                  value={existing.qty}
+                                  onChange={(e) => handleUpdateQty(prod.id, e.target.value)}
+                                  className="w-12 text-center text-xs font-black text-emerald-900 bg-white border border-emerald-200 rounded px-0.5 py-0.5 focus:outline-none"
+                                  title="Type exact quantity (e.g. 0.5, 1, 2.5)"
+                                />
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateQty(prod.id, existing.qty + 1)}
-                                  className="w-4 h-4 flex items-center justify-center hover:bg-emerald-700 rounded cursor-pointer"
+                                  className="w-5 h-6 flex items-center justify-center bg-white hover:bg-emerald-100 text-emerald-800 rounded font-bold cursor-pointer"
+                                  title="Increase quantity"
                                 >
                                   +
                                 </button>
@@ -1054,56 +1194,146 @@ Thank you for shopping with ${storeName}! 🙏`;
                       <p className="text-[11px] text-gray-400 mt-0.5">Use product search above or add a custom item.</p>
                     </div>
                   ) : (
-                    <div className="max-h-48 overflow-y-auto space-y-2 pr-1">
-                      {orderItems.map((item) => (
-                        <div
-                          key={item.product_id}
-                          className="flex items-center justify-between p-2 rounded-xl bg-gray-50 border border-gray-200 text-xs"
-                        >
-                          <div className="min-w-0 pr-2">
-                            <div className="flex items-center gap-1.5">
-                              <h5 className="font-bold text-gray-900 truncate">{item.name}</h5>
-                              {item.is_custom && (
-                                <span className="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 rounded">
-                                  Custom
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-[11px] text-gray-500">
-                              ₹{item.price} × {item.qty} = <strong className="text-emerald-700">₹{item.price * item.qty}</strong>
-                              <span className="ml-1 text-[10px]">({item.unit})</span>
-                            </div>
-                          </div>
+                    <div className="max-h-64 overflow-y-auto space-y-2.5 pr-1">
+                      {orderItems.map((item) => {
+                        const itemCost = Number(item.purchase_price) || 0;
+                        const itemPrice = Number(item.price) || 0;
+                        const itemQty = Number(item.qty) || 0;
+                        const lineTotal = Number((itemPrice * itemQty).toFixed(2));
+                        const lineCost = Number((itemCost * itemQty).toFixed(2));
+                        const lineMargin = lineCost > 0 ? Number((lineTotal - lineCost).toFixed(2)) : null;
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <div className="flex items-center border border-gray-300 rounded-lg overflow-hidden bg-white">
+                        return (
+                          <div
+                            key={item.product_id}
+                            className="p-2.5 rounded-xl bg-gray-50/90 border border-gray-200 hover:border-emerald-300 transition-all text-xs space-y-2 shadow-2xs"
+                          >
+                            {/* Top row: Title, Unit, Custom badge, Delete button */}
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <h5 className="font-extrabold text-gray-900 truncate text-xs">{item.name}</h5>
+                                  {item.is_custom && (
+                                    <span className="bg-amber-100 text-amber-800 text-[9px] font-black px-1.5 py-0.2 rounded border border-amber-300">
+                                      Custom
+                                    </span>
+                                  )}
+                                  <span className="text-[10px] text-gray-500 font-medium bg-gray-200/70 px-1.5 py-0.2 rounded">
+                                    {item.unit}
+                                  </span>
+                                </div>
+                              </div>
+
                               <button
                                 type="button"
-                                onClick={() => handleUpdateQty(item.product_id, item.qty - 1)}
-                                className="px-2 py-0.5 hover:bg-gray-100 text-gray-700 font-bold cursor-pointer"
+                                onClick={() => handleRemoveItem(item.product_id)}
+                                className="text-gray-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                title="Remove item"
                               >
-                                -
-                              </button>
-                              <span className="px-2 font-bold text-xs">{item.qty}</span>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateQty(item.product_id, item.qty + 1)}
-                                className="px-2 py-0.5 hover:bg-gray-100 text-gray-700 font-bold cursor-pointer"
-                              >
-                                +
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
 
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(item.product_id)}
-                              className="text-gray-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50 cursor-pointer"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            {/* Middle row: Editable Selling Price, Purchase Rate, and Quantity Input */}
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white p-2 rounded-lg border border-gray-200/80">
+                              {/* Selling Price */}
+                              <div>
+                                <label className="text-[9px] font-bold text-gray-600 block mb-0.5">
+                                  Selling Price (बिक्री रेट ₹)
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  value={item.price}
+                                  onChange={(e) => handleUpdatePrice(item.product_id, e.target.value)}
+                                  className="w-full px-2 py-1 text-xs font-bold text-emerald-800 bg-emerald-50/40 border border-emerald-300 rounded focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Purchase Rate (Wholesale Cost) */}
+                              <div>
+                                <label className="text-[9px] font-bold text-purple-900 block mb-0.5 flex items-center justify-between">
+                                  <span>Purchase Rate (खरीद रेट ₹)</span>
+                                </label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="any"
+                                  placeholder="₹ Cost"
+                                  value={item.purchase_price !== undefined ? item.purchase_price : ''}
+                                  onChange={(e) => handleUpdatePurchasePrice(item.product_id, e.target.value)}
+                                  className="w-full px-2 py-1 text-xs font-bold text-purple-900 bg-purple-50/50 border border-purple-300 rounded focus:outline-none"
+                                />
+                              </div>
+
+                              {/* Quantity with Minus, Direct Input, Plus */}
+                              <div>
+                                <label className="text-[9px] font-bold text-gray-700 block mb-0.5">
+                                  Quantity (मात्रा)
+                                </label>
+                                <div className="flex items-center border border-gray-300 rounded bg-white overflow-hidden">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateQty(item.product_id, Number((item.qty - (item.qty > 1 ? 1 : 0.25)).toFixed(2)))}
+                                    className="px-2 py-1 hover:bg-gray-100 text-gray-700 font-black cursor-pointer text-xs"
+                                  >
+                                    -
+                                  </button>
+                                  <input
+                                    type="number"
+                                    step="any"
+                                    min="0.01"
+                                    value={item.qty}
+                                    onChange={(e) => handleUpdateQty(item.product_id, e.target.value)}
+                                    className="w-full text-center font-black text-xs text-gray-900 py-1 focus:outline-none border-x border-gray-200"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateQty(item.product_id, Number((item.qty + (item.qty >= 1 ? 1 : 0.25)).toFixed(2)))}
+                                    className="px-2 py-1 hover:bg-gray-100 text-gray-700 font-black cursor-pointer text-xs"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Bottom row: Quick presets & totals */}
+                            <div className="flex flex-wrap items-center justify-between gap-1.5 pt-0.5">
+                              {/* Quick Quantity Presets */}
+                              <div className="flex items-center gap-1 flex-wrap">
+                                <span className="text-[9px] text-gray-400 font-bold">Quick:</span>
+                                {[0.25, 0.5, 1, 2, 5].map((preset) => (
+                                  <button
+                                    key={preset}
+                                    type="button"
+                                    onClick={() => handleUpdateQty(item.product_id, preset)}
+                                    className={`px-1.5 py-0.5 rounded text-[9px] font-black border transition-all cursor-pointer ${
+                                      Number(item.qty) === preset
+                                        ? 'bg-emerald-600 text-white border-emerald-600'
+                                        : 'bg-white text-gray-600 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50'
+                                    }`}
+                                  >
+                                    {preset >= 1 ? `${preset}` : `${preset * 1000}g`}
+                                  </button>
+                                ))}
+                              </div>
+
+                              {/* Line Subtotal and Margin */}
+                              <div className="text-right text-[11px]">
+                                <span className="font-bold text-gray-700">Total: </span>
+                                <strong className="text-emerald-700 font-black">₹{lineTotal}</strong>
+                                {lineCost > 0 && (
+                                  <span className="ml-1.5 text-[10px] text-purple-700 font-bold bg-purple-50 px-1 py-0.5 rounded border border-purple-200">
+                                    Cost: ₹{lineCost} {lineMargin !== null && `(Margin: +₹${lineMargin})`}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
 
@@ -1220,6 +1450,13 @@ Thank you for shopping with ${storeName}! 🙏`;
                     <span>Grand Total:</span>
                     <span className="text-emerald-700 text-lg font-black">₹{grandTotal}</span>
                   </div>
+
+                  {totalCost > 0 && (
+                    <div className="flex justify-between items-center text-[11px] text-purple-900 bg-purple-50 px-2.5 py-1.5 rounded-lg border border-purple-200">
+                      <span>Total Cost: <strong>₹{totalCost.toFixed(1)}</strong></span>
+                      <span className="font-bold text-emerald-700">Gross Margin: +₹{estimatedMargin.toFixed(1)}</span>
+                    </div>
+                  )}
                 </div>
 
                 {errorMessage && (
