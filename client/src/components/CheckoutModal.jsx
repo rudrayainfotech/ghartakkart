@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, deductOrderStockFromProducts } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import {
   X,
@@ -318,16 +318,7 @@ export default function CheckoutModal() {
     });
 
     // 3. Deduct purchased item quantities from product inventory in local UI state
-    const updatedProducts = products.map(prod => {
-      const purchasedItem = (newOrder.items || []).find(it => it.product_id === prod.id);
-      if (purchasedItem) {
-        return {
-          ...prod,
-          stock: Math.max(0, (Number(prod.stock) || 0) - (Number(purchasedItem.qty) || 0))
-        };
-      }
-      return prod;
-    });
+    const updatedProducts = deductOrderStockFromProducts(products, newOrder.items);
     setProducts(updatedProducts);
     try {
       localStorage.setItem('gk_products', JSON.stringify(updatedProducts));
@@ -356,20 +347,14 @@ export default function CheckoutModal() {
     (async () => {
       try {
         const latestProducts = await fetchNodeFromSupabase('products');
-        if (Array.isArray(latestProducts)) {
-          const patched = latestProducts.map(p => {
-            const purchasedItem = (newOrder.items || []).find(it => it.product_id === p.id);
-            if (purchasedItem) {
-              return {
-                ...p,
-                stock: Math.max(0, (Number(p.stock) || 0) - (Number(purchasedItem.qty) || 0))
-              };
-            }
-            return p;
-          });
-          syncToFirebase('products', patched);
-        }
-      } catch {}
+        const sourceProducts = (Array.isArray(latestProducts) && latestProducts.length >= 20)
+          ? latestProducts
+          : updatedProducts;
+        const patched = deductOrderStockFromProducts(sourceProducts, newOrder.items);
+        await syncToFirebase('products', patched);
+      } catch (err) {
+        console.warn('Stock decrement remote sync error:', err);
+      }
     })();
   };
 

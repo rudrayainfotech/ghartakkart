@@ -684,7 +684,12 @@ app.post('/api/orders', (req, res) => {
 
   // Check stock and decrement
   for (const item of items) {
-    const prod = db.products.find(p => p.id === item.product_id);
+    const prod = db.products.find(p =>
+      p.id === item.base_product_id ||
+      p.id === item.product_id ||
+      p.id === String(item.product_id || '').split('__')[0] ||
+      (item.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
     if (prod) {
       if (prod.stock < item.qty) {
         return res.status(400).json({
@@ -1072,7 +1077,12 @@ app.post('/api/orders/:id/cancel', (req, res) => {
 
   // Restore inventory
   for (const item of order.items) {
-    const prod = db.products.find(p => p.id === item.product_id);
+    const prod = db.products.find(p =>
+      p.id === item.base_product_id ||
+      p.id === item.product_id ||
+      p.id === String(item.product_id || '').split('__')[0] ||
+      (item.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+    );
     if (prod) {
       prod.stock += item.qty;
     }

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -1981,8 +1981,11 @@ Thank you for shopping with ${storeName}! 🙏`;
     setOrders(updatedList);
     try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
 
-    // If order is newly cancelled, restore product stock, auto-remove cashback, refund wallet and adjust customer profile stamps
-    if (newStatus === 'Cancelled' && oldStatus !== 'Cancelled') {
+    // If order status changes to Cancelled or Rejected, restore product stock (+), auto-remove cashback, refund wallet and adjust customer profile stamps
+    const wasCancelled = oldStatus === 'Cancelled' || oldStatus === 'Rejected';
+    const isNowCancelled = newStatus === 'Cancelled' || newStatus === 'Rejected';
+
+    if (isNowCancelled && !wasCancelled) {
       const orderPhone = (targetOrder?.customer_phone || targetOrder?.address?.phone || '').replace(/\D/g, '').slice(-10);
       const custPhone = (customerUser?.phone || '').replace(/\D/g, '').slice(-10);
       if (orderPhone && custPhone && orderPhone === custPhone) {
@@ -2024,21 +2027,23 @@ Thank you for shopping with ${storeName}! 🙏`;
         }
       }
 
+      // 3. RESTORE PRODUCT STOCK (+)
       if (Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
-        const restoredProducts = products.map(prod => {
-          const matchedItem = targetOrder.items.find(it => it.product_id === prod.id && !it.is_custom);
-          if (matchedItem) {
-            return {
-              ...prod,
-              stock: (Number(prod.stock) || 0) + (Number(matchedItem.qty) || 0)
-            };
-          }
-          return prod;
-        });
+        const restoredProducts = restoreOrderStockToProducts(products, targetOrder.items);
         setProducts(restoredProducts);
         try { localStorage.setItem('gk_products', JSON.stringify(restoredProducts)); } catch {}
-        if (restoredProducts.length >= 30) {
+        if (restoredProducts.length >= 20) {
           syncToFirebase('products', restoredProducts);
+        }
+      }
+    } else if (!isNowCancelled && wasCancelled) {
+      // Order was restored to active stage -> RE-DEDUCT PRODUCT STOCK (-)
+      if (Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
+        const deductedProducts = deductOrderStockFromProducts(products, targetOrder.items);
+        setProducts(deductedProducts);
+        try { localStorage.setItem('gk_products', JSON.stringify(deductedProducts)); } catch {}
+        if (deductedProducts.length >= 20) {
+          syncToFirebase('products', deductedProducts);
         }
       }
     }
@@ -2662,6 +2667,27 @@ Thank you for shopping with ${storeName}! 🙏`;
     setOrders(updatedList);
     try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
 
+    // Stock adjustment for edited order items
+    const originalOrder = orders.find(o => o.id === orderId);
+    if (originalOrder && Array.isArray(originalOrder.items)) {
+      const origWasCancelled = originalOrder.order_status === 'Cancelled' || originalOrder.order_status === 'Rejected';
+      const nowIsCancelled = editingFullOrder.order_status === 'Cancelled' || editingFullOrder.order_status === 'Rejected';
+      let adjustedProducts = products;
+      if (!origWasCancelled) {
+        adjustedProducts = restoreOrderStockToProducts(adjustedProducts, originalOrder.items);
+      }
+      if (!nowIsCancelled) {
+        adjustedProducts = deductOrderStockFromProducts(adjustedProducts, editOrderItems);
+      }
+      if (adjustedProducts !== products) {
+        setProducts(adjustedProducts);
+        try { localStorage.setItem('gk_products', JSON.stringify(adjustedProducts)); } catch {}
+        if (adjustedProducts.length >= 20) {
+          syncToFirebase('products', adjustedProducts);
+        }
+      }
+    }
+
     if (addAuditLog) {
       addAuditLog({
         action: 'Edit Order Details',
@@ -3037,6 +3063,83 @@ Thank you for shopping with ${storeName}! 🙏`;
     setProducts(nextProducts);
     try { localStorage.setItem('gk_products', JSON.stringify(nextProducts)); } catch {}
     await syncToFirebase('products', nextProducts);
+  };
+
+  // Quick Plus (+) / Minus (-) stock adjuster right from admin table
+  const handleQuickAdjustStock = async (productId, delta, variantId = null) => {
+    const updated = products.map(p => {
+      if (p.id !== productId) return p;
+      if (variantId && Array.isArray(p.variants) && p.variants.length > 0) {
+        const updatedVars = p.variants.map(v => {
+          if (v && v.id === variantId) {
+            const currentVStock = Number(v.stock !== undefined ? v.stock : (p.stock ?? 50));
+            const newVStock = Math.max(0, currentVStock + delta);
+            return { ...v, stock: newVStock };
+          }
+          return v;
+        });
+        const totalStock = updatedVars.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+        return {
+          ...p,
+          stock: totalStock,
+          variants: updatedVars
+        };
+      } else {
+        const currentStock = Number(p.stock !== undefined ? p.stock : 50);
+        const newStock = Math.max(0, currentStock + delta);
+        const updatedVars = Array.isArray(p.variants) && p.variants.length === 1
+          ? [{ ...p.variants[0], stock: newStock }]
+          : p.variants;
+        return {
+          ...p,
+          stock: newStock,
+          variants: updatedVars
+        };
+      }
+    });
+
+    setProducts(updated);
+    try { localStorage.setItem('gk_products', JSON.stringify(updated)); } catch {}
+    if (updated.length >= 20) {
+      await syncToFirebase('products', updated);
+    }
+  };
+
+  // Direct Set Stock quantity from inline edit
+  const handleDirectSetStock = async (productId, newStockValue, variantId = null) => {
+    const parsedStock = Math.max(0, parseInt(newStockValue, 10) || 0);
+    const updated = products.map(p => {
+      if (p.id !== productId) return p;
+      if (variantId && Array.isArray(p.variants) && p.variants.length > 0) {
+        const updatedVars = p.variants.map(v => {
+          if (v && v.id === variantId) {
+            return { ...v, stock: parsedStock };
+          }
+          return v;
+        });
+        const totalStock = updatedVars.reduce((sum, v) => sum + (Number(v.stock) || 0), 0);
+        return {
+          ...p,
+          stock: totalStock,
+          variants: updatedVars
+        };
+      } else {
+        const updatedVars = Array.isArray(p.variants) && p.variants.length === 1
+          ? [{ ...p.variants[0], stock: parsedStock }]
+          : p.variants;
+        return {
+          ...p,
+          stock: parsedStock,
+          variants: updatedVars
+        };
+      }
+    });
+
+    setProducts(updated);
+    try { localStorage.setItem('gk_products', JSON.stringify(updated)); } catch {}
+    if (updated.length >= 20) {
+      await syncToFirebase('products', updated);
+    }
   };
 
   // Handle Save Category -> Syncs with Firebase RTDB
@@ -6033,11 +6136,85 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                               )}
                             </td>
                             <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                                p.stock <= 5 ? 'bg-rose-100 text-rose-800' : 'bg-emerald-100 text-emerald-800'
-                              }`}>
-                                {p.stock} units
-                              </span>
+                              {vars.length > 1 ? (
+                                <div className="space-y-1.5 min-w-[130px]">
+                                  {vars.map((v, idx) => {
+                                    const vStock = v.stock !== undefined ? Number(v.stock) : (Number(p.stock) || 0);
+                                    return (
+                                      <div key={v.id || idx} className="flex items-center justify-between gap-1.5 bg-gray-50 border border-gray-200 px-1.5 py-0.5 rounded-lg text-[10px]">
+                                        <span className="font-bold text-gray-600 truncate max-w-[55px]">{v.unit}:</span>
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickAdjustStock(p.id, -1, v.id)}
+                                            className="w-5 h-5 rounded bg-white hover:bg-rose-50 hover:text-rose-700 hover:border-rose-300 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 transition-colors shadow-2xs cursor-pointer"
+                                            title={`Minus 1 unit for ${v.unit}`}
+                                          >
+                                            -
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const val = window.prompt(`Set stock for "${p.name}" (${v.unit}):`, vStock);
+                                              if (val !== null && val.trim() !== '') {
+                                                handleDirectSetStock(p.id, val, v.id);
+                                              }
+                                            }}
+                                            className={`font-mono font-black min-w-[24px] px-1 text-center cursor-pointer hover:underline ${
+                                              vStock <= 5 ? 'text-rose-700' : 'text-gray-900'
+                                            }`}
+                                            title="Click to edit stock"
+                                          >
+                                            {vStock}
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={() => handleQuickAdjustStock(p.id, +1, v.id)}
+                                            className="w-5 h-5 rounded bg-white hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-300 text-gray-700 flex items-center justify-center font-bold text-xs border border-gray-200 transition-colors shadow-2xs cursor-pointer"
+                                            title={`Plus 1 unit for ${v.unit}`}
+                                          >
+                                            +
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickAdjustStock(p.id, -1)}
+                                    className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-rose-100 hover:text-rose-700 text-gray-700 flex items-center justify-center font-black text-xs border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                                    title="Minus 1 from stock"
+                                  >
+                                    -
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const val = window.prompt(`Set stock quantity for "${p.name}":`, p.stock ?? 50);
+                                      if (val !== null && val.trim() !== '') {
+                                        handleDirectSetStock(p.id, val);
+                                      }
+                                    }}
+                                    className={`px-2 py-0.5 rounded-md font-mono font-black text-xs border cursor-pointer hover:ring-2 hover:ring-brand-400 transition-all ${
+                                      (Number(p.stock) || 0) <= 5 ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                    }`}
+                                    title="Click to edit stock quantity"
+                                  >
+                                    {p.stock ?? 50} units
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleQuickAdjustStock(p.id, +1)}
+                                    className="w-6 h-6 rounded-lg bg-gray-100 hover:bg-emerald-100 hover:text-emerald-700 text-gray-700 flex items-center justify-center font-black text-xs border border-gray-200 transition-colors cursor-pointer shadow-2xs"
+                                    title="Plus 1 to stock"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              )}
                             </td>
                             <td className="p-3 text-right">
                               <div className="flex items-center justify-end gap-1">

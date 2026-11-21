@@ -499,6 +499,141 @@ export function getCartItemKey(productId, unit) {
   return unit ? `${productId}__${String(unit).trim()}` : String(productId);
 }
 
+/**
+ * Robust helper: Deduct ordered item quantities from product inventory (minus)
+ * Handles base products, variants, and composite cart keys with safety guards.
+ */
+export function deductOrderStockFromProducts(productsList, orderItems) {
+  if (!Array.isArray(productsList) || !Array.isArray(orderItems) || orderItems.length === 0) {
+    return productsList;
+  }
+
+  return productsList.map(prod => {
+    if (!prod || !prod.id) return prod;
+    const prodId = String(prod.id).trim();
+
+    // Find all order items belonging to this product
+    const matchingItems = orderItems.filter(it => {
+      if (!it || it.is_custom) return false;
+      const baseId = String(it.base_product_id || (it.product_id ? String(it.product_id).split('__')[0] : '')).trim();
+      const itId = String(it.product_id || '').trim();
+
+      if (prodId && (baseId === prodId || itId === prodId || itId.startsWith(prodId + '__'))) {
+        return true;
+      }
+      if (it.name && prod.name && String(it.name).trim().toLowerCase() === String(prod.name).trim().toLowerCase()) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matchingItems.length === 0) return prod;
+
+    const totalDeduction = matchingItems.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+    const currBaseStock = Number(prod.stock !== undefined ? prod.stock : 50);
+    const newBaseStock = Math.max(0, currBaseStock - totalDeduction);
+
+    let updatedVariants = prod.variants;
+    if (Array.isArray(prod.variants) && prod.variants.length > 0) {
+      updatedVariants = prod.variants.map(v => {
+        if (!v) return v;
+        const vUnitClean = String(v.unit || '').trim().toLowerCase();
+        const vMatching = matchingItems.filter(it => {
+          const itUnitClean = String(it.unit || '').trim().toLowerCase();
+          const itKey = String(it.product_id || '').toLowerCase();
+          return (
+            (itUnitClean && itUnitClean === vUnitClean) ||
+            (vUnitClean && (itKey.endsWith('__' + vUnitClean) || itKey.includes(vUnitClean)))
+          );
+        });
+
+        if (vMatching.length > 0) {
+          const vDeduction = vMatching.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+          const currVStock = v.stock !== undefined ? Number(v.stock) : currBaseStock;
+          return {
+            ...v,
+            stock: Math.max(0, currVStock - vDeduction)
+          };
+        }
+        return v;
+      });
+    }
+
+    return {
+      ...prod,
+      stock: newBaseStock,
+      variants: updatedVariants
+    };
+  });
+}
+
+/**
+ * Robust helper: Restore ordered item quantities to product inventory (plus)
+ * Used when an order is Cancelled or Rejected by store/customer.
+ */
+export function restoreOrderStockToProducts(productsList, orderItems) {
+  if (!Array.isArray(productsList) || !Array.isArray(orderItems) || orderItems.length === 0) {
+    return productsList;
+  }
+
+  return productsList.map(prod => {
+    if (!prod || !prod.id) return prod;
+    const prodId = String(prod.id).trim();
+
+    const matchingItems = orderItems.filter(it => {
+      if (!it || it.is_custom) return false;
+      const baseId = String(it.base_product_id || (it.product_id ? String(it.product_id).split('__')[0] : '')).trim();
+      const itId = String(it.product_id || '').trim();
+
+      if (prodId && (baseId === prodId || itId === prodId || itId.startsWith(prodId + '__'))) {
+        return true;
+      }
+      if (it.name && prod.name && String(it.name).trim().toLowerCase() === String(prod.name).trim().toLowerCase()) {
+        return true;
+      }
+      return false;
+    });
+
+    if (matchingItems.length === 0) return prod;
+
+    const totalRestoration = matchingItems.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+    const currBaseStock = Number(prod.stock !== undefined ? prod.stock : 50);
+    const newBaseStock = currBaseStock + totalRestoration;
+
+    let updatedVariants = prod.variants;
+    if (Array.isArray(prod.variants) && prod.variants.length > 0) {
+      updatedVariants = prod.variants.map(v => {
+        if (!v) return v;
+        const vUnitClean = String(v.unit || '').trim().toLowerCase();
+        const vMatching = matchingItems.filter(it => {
+          const itUnitClean = String(it.unit || '').trim().toLowerCase();
+          const itKey = String(it.product_id || '').toLowerCase();
+          return (
+            (itUnitClean && itUnitClean === vUnitClean) ||
+            (vUnitClean && (itKey.endsWith('__' + vUnitClean) || itKey.includes(vUnitClean)))
+          );
+        });
+
+        if (vMatching.length > 0) {
+          const vRestoration = vMatching.reduce((s, it) => s + (Number(it.qty) || 0), 0);
+          const currVStock = v.stock !== undefined ? Number(v.stock) : currBaseStock;
+          return {
+            ...v,
+            stock: currVStock + vRestoration
+          };
+        }
+        return v;
+      });
+    }
+
+    return {
+      ...prod,
+      stock: newBaseStock,
+      variants: updatedVariants
+    };
+  });
+}
+
 export async function syncToFirebase(nodePath, data) {
   try {
     let payloadToSync = data;
@@ -742,6 +877,27 @@ export function StoreProvider({ children }) {
 
   const [loading, setLoading] = useState(false);
   const knownOrderIdsRef = useRef(new Set());
+  const processedStockOrderIds = useRef(new Set());
+
+  // Track initial orders so existing past orders aren't re-deducted
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('gk_orders');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(o => {
+            if (o && o.id) {
+              processedStockOrderIds.current.add(o.id);
+              if (o.order_status === 'Cancelled' || o.order_status === 'Rejected') {
+                processedStockOrderIds.current.add(`${o.id}_cancelled`);
+              }
+            }
+          });
+        }
+      }
+    } catch {}
+  }, []);
 
   const [adminMode, setAdminMode] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -1362,6 +1518,16 @@ export function StoreProvider({ children }) {
           } else if (key === 'orders_inbox' && Array.isArray(data)) {
             // Immediate real-time inbox notification (< 50ms)
             mergeAndSyncOrders(data, true);
+            data.forEach(ord => {
+              if (ord && ord.id && !processedStockOrderIds.current.has(ord.id) && Array.isArray(ord.items) && ord.items.length > 0) {
+                processedStockOrderIds.current.add(ord.id);
+                setProducts(prev => {
+                  const next = deductOrderStockFromProducts(prev, ord.items);
+                  try { localStorage.setItem('gk_products', JSON.stringify(next)); } catch {}
+                  return next;
+                });
+              }
+            });
           } else if (key === 'settings' && data) {
             setSettings(prev => ({ ...prev, ...data }));
           } else if (key === 'products' && Array.isArray(data)) {
@@ -1386,6 +1552,28 @@ export function StoreProvider({ children }) {
           // Direct Realtime WebSocket Broadcast (< 30ms latency)
           if ((event === 'NEW_ORDER' || event === 'ORDER_STATUS_CHANGED') && payload) {
             mergeAndSyncOrders([payload], true);
+            if (event === 'NEW_ORDER' && payload?.id && Array.isArray(payload.items) && payload.items.length > 0) {
+              if (!processedStockOrderIds.current.has(payload.id)) {
+                processedStockOrderIds.current.add(payload.id);
+                setProducts(prev => {
+                  const next = deductOrderStockFromProducts(prev, payload.items);
+                  try { localStorage.setItem('gk_products', JSON.stringify(next)); } catch {}
+                  return next;
+                });
+              }
+            } else if (event === 'ORDER_STATUS_CHANGED' && payload?.id) {
+              if ((payload.order_status === 'Cancelled' || payload.order_status === 'Rejected') && Array.isArray(payload.items) && payload.items.length > 0) {
+                const cancelKey = `${payload.id}_cancelled`;
+                if (!processedStockOrderIds.current.has(cancelKey)) {
+                  processedStockOrderIds.current.add(cancelKey);
+                  setProducts(prev => {
+                    const next = restoreOrderStockToProducts(prev, payload.items);
+                    try { localStorage.setItem('gk_products', JSON.stringify(next)); } catch {}
+                    return next;
+                  });
+                }
+              }
+            }
           }
         }
       );
@@ -2836,6 +3024,10 @@ export function StoreProvider({ children }) {
         deleteVendorLedgerEntry,
         resetAllVendorLedgers,
         settleVendorBalance,
+
+        // Inventory Stock Deductions & Restorations
+        deductOrderStockFromProducts,
+        restoreOrderStockToProducts,
 
         // Expenses & Incomes (Accounting)
         expenses,

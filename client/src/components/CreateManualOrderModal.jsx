@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useStore, syncToFirebase } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, deductOrderStockFromProducts } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import { calculateDeliveryTime } from '../utils/haversine.js';
@@ -426,20 +426,8 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
         updated_at: nowIso
       };
 
-      // 1. Deduct Stock for catalog products
-      const updatedProducts = products.map(prod => {
-        const matchingPurchased = orderItems.filter(
-          it => (it.base_product_id === prod.id || it.product_id === prod.id) && !it.is_custom
-        );
-        if (matchingPurchased.length > 0) {
-          const totalQtyDeducted = matchingPurchased.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
-          return {
-            ...prod,
-            stock: Math.max(0, (Number(prod.stock) || 0) - totalQtyDeducted)
-          };
-        }
-        return prod;
-      });
+      // 1. Deduct Stock for catalog products in local UI state
+      const updatedProducts = deductOrderStockFromProducts(products, newOrder.items);
       setProducts(updatedProducts);
       try { localStorage.setItem('gk_products', JSON.stringify(updatedProducts)); } catch {}
 
@@ -470,20 +458,14 @@ export default function CreateManualOrderModal({ isOpen, onClose, onOpenInvoice 
       (async () => {
         try {
           const latestProducts = await fetchNodeFromSupabase('products');
-          if (Array.isArray(latestProducts)) {
-            const patched = latestProducts.map(p => {
-              const purchasedItem = (newOrder.items || []).find(it => it.product_id === p.id);
-              if (purchasedItem) {
-                return {
-                  ...p,
-                  stock: Math.max(0, (Number(p.stock) || 0) - (Number(purchasedItem.qty) || 0))
-                };
-              }
-              return p;
-            });
-            syncToFirebase('products', patched);
-          }
-        } catch {}
+          const sourceProducts = (Array.isArray(latestProducts) && latestProducts.length >= 20)
+            ? latestProducts
+            : updatedProducts;
+          const patched = deductOrderStockFromProducts(sourceProducts, newOrder.items);
+          await syncToFirebase('products', patched);
+        } catch (err) {
+          console.warn('Manual order stock sync error:', err);
+        }
       })();
 
       // 4. Audit Log
