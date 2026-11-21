@@ -256,7 +256,6 @@ export function subscribeStoreKv(onUpdate, onBroadcast) {
         (msg) => {
           if (msg && msg.payload) {
             if (typeof onBroadcast === 'function') onBroadcast('ORDER_STATUS_CHANGED', msg.payload);
-            if (typeof onUpdate === 'function') onUpdate('orders_inbox', [msg.payload]);
           }
         }
       )

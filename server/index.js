@@ -1031,8 +1031,26 @@ app.patch('/api/orders/:id/status', checkAdminAuth, (req, res) => {
   if (!order) return res.status(404).json({ error: 'Order not found' });
 
   const now = new Date().toISOString();
+  const wasCancelled = order.order_status === 'Cancelled' || order.order_status === 'Rejected';
+  const isNowCancelled = status === 'Cancelled' || status === 'Rejected';
+
   if (status) {
     order.order_status = status;
+  }
+
+  // Restore stock if newly cancelled
+  if (isNowCancelled && !wasCancelled && Array.isArray(order.items)) {
+    for (const item of order.items) {
+      const prod = db.products.find(p =>
+        p.id === item.base_product_id ||
+        p.id === item.product_id ||
+        p.id === String(item.product_id || '').split('__')[0] ||
+        (item.name && p.name && p.name.trim().toLowerCase() === item.name.trim().toLowerCase())
+      );
+      if (prod) {
+        prod.stock = (Number(prod.stock) || 0) + (Number(item.qty) || 0);
+      }
+    }
   }
 
   const finalRemark = remark !== undefined ? remark : (admin_remark !== undefined ? admin_remark : note);

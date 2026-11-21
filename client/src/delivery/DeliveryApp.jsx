@@ -12,7 +12,8 @@ import {
   saveStoredCashLedger, queueOfflineAction, flushOfflineQueue, 
   syncPartnerLocationToFirebase 
 } from './storage.js';
-import { fetchNodeFromSupabase, updateNodeItemInSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, updateNodeItemInSupabase, syncNodeToSupabase } from '../supabase.js';
+import { restoreOrderStockToProducts } from '../context/StoreContext.jsx';
 import { playAcceptChime, playDeliveredChime } from './audio.js';
 
 import { OrderAcceptModal } from './components/OrderAcceptModal.jsx';
@@ -379,6 +380,14 @@ export default function DeliveryApp() {
           assigned_staff_id: partner.id,
           timeline: targetOrder?.timeline || []
         });
+
+        if (newStatus === 'Cancelled' && Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
+          const remoteProds = await fetchNodeFromSupabase('products');
+          if (Array.isArray(remoteProds) && remoteProds.length > 0) {
+            const restored = restoreOrderStockToProducts(remoteProds, targetOrder.items);
+            await syncNodeToSupabase('products', restored);
+          }
+        }
       } catch (err) {
         queueOfflineAction({
           type: 'ORDER_STATUS_UPDATE',

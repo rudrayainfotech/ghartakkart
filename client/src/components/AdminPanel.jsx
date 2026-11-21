@@ -2028,23 +2028,56 @@ Thank you for shopping with ${storeName}! 🙏`;
       }
 
       // 3. RESTORE PRODUCT STOCK (+)
-      if (Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
-        const restoredProducts = restoreOrderStockToProducts(products, targetOrder.items);
-        setProducts(restoredProducts);
-        try { localStorage.setItem('gk_products', JSON.stringify(restoredProducts)); } catch {}
-        if (restoredProducts.length >= 20) {
-          syncToFirebase('products', restoredProducts);
-        }
+      const itemsToRestore = Array.isArray(targetOrder?.items) && targetOrder.items.length > 0
+        ? targetOrder.items
+        : [];
+      if (itemsToRestore.length > 0) {
+        let nextRestored = null;
+        setProducts(prevProducts => {
+          nextRestored = restoreOrderStockToProducts(prevProducts, itemsToRestore);
+          try { localStorage.setItem('gk_products', JSON.stringify(nextRestored)); } catch {}
+          return nextRestored;
+        });
+
+        // Concurrently fetch latest remote products from Supabase, apply restoration, and sync to Supabase
+        (async () => {
+          try {
+            const remoteProds = await fetchNodeFromSupabase('products');
+            const source = (Array.isArray(remoteProds) && remoteProds.length > 0)
+              ? remoteProds
+              : (nextRestored || products);
+            const updatedRemote = restoreOrderStockToProducts(source, itemsToRestore);
+            await syncToFirebase('products', updatedRemote);
+          } catch (err) {
+            console.warn('[Admin Status] Remote stock restoration error:', err);
+          }
+        })();
       }
     } else if (!isNowCancelled && wasCancelled) {
       // Order was restored to active stage -> RE-DEDUCT PRODUCT STOCK (-)
-      if (Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
-        const deductedProducts = deductOrderStockFromProducts(products, targetOrder.items);
-        setProducts(deductedProducts);
-        try { localStorage.setItem('gk_products', JSON.stringify(deductedProducts)); } catch {}
-        if (deductedProducts.length >= 20) {
-          syncToFirebase('products', deductedProducts);
-        }
+      const itemsToDeduct = Array.isArray(targetOrder?.items) && targetOrder.items.length > 0
+        ? targetOrder.items
+        : [];
+      if (itemsToDeduct.length > 0) {
+        let nextDeducted = null;
+        setProducts(prevProducts => {
+          nextDeducted = deductOrderStockFromProducts(prevProducts, itemsToDeduct);
+          try { localStorage.setItem('gk_products', JSON.stringify(nextDeducted)); } catch {}
+          return nextDeducted;
+        });
+
+        (async () => {
+          try {
+            const remoteProds = await fetchNodeFromSupabase('products');
+            const source = (Array.isArray(remoteProds) && remoteProds.length > 0)
+              ? remoteProds
+              : (nextDeducted || products);
+            const updatedRemote = deductOrderStockFromProducts(source, itemsToDeduct);
+            await syncToFirebase('products', updatedRemote);
+          } catch (err) {
+            console.warn('[Admin Status] Remote stock deduction error:', err);
+          }
+        })();
       }
     }
 
@@ -2082,7 +2115,7 @@ Thank you for shopping with ${storeName}! 🙏`;
           combinedMap.set(lo.id, lo);
         }
       }
-      updatedList = applyStatusUpdate(Array.from(combinedMap.values()));
+      updatedList = Array.from(combinedMap.values());
       updatedList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
       setOrders(updatedList);
       try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
@@ -2092,6 +2125,22 @@ Thank you for shopping with ${storeName}! 🙏`;
     const updatedOrder = updatedList.find(o => o.id === orderId);
     if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     await syncToFirebase('orders', updatedList);
+
+    // Also update orders_inbox in Supabase so old 'Placed' state does not linger
+    (async () => {
+      try {
+        const inboxData = await fetchNodeFromSupabase('orders_inbox');
+        if (Array.isArray(inboxData)) {
+          const patchedInbox = inboxData.map(io => {
+            if (io && String(io.id) === String(orderId)) {
+              return { ...io, order_status: newStatus, updated_at: nowIso };
+            }
+            return io;
+          });
+          await syncNodeToSupabase('orders_inbox', patchedInbox);
+        }
+      } catch {}
+    })();
   };
 
   // Handle Update / Save Admin Remark on Order -> Syncs with Firebase RTDB

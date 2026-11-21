@@ -644,8 +644,8 @@ export async function syncToFirebase(nodePath, data) {
       window.__gkLastMilestoneWrite = Date.now();
     }
     if (nodePath === 'products' && Array.isArray(data)) {
-      if (data.length < 20) {
-        console.warn(`[SAFETY GUARD] Blocked attempt to overwrite entire products catalog with truncated array of length ${data.length}`);
+      if (data.length === 0) {
+        console.warn('[SAFETY GUARD] Blocked attempt to overwrite products catalog with empty array');
         return;
       }
       window.__gkLastProductWrite = Date.now();
@@ -1519,7 +1519,8 @@ export function StoreProvider({ children }) {
             // Immediate real-time inbox notification (< 50ms)
             mergeAndSyncOrders(data, true);
             data.forEach(ord => {
-              if (ord && ord.id && !processedStockOrderIds.current.has(ord.id) && Array.isArray(ord.items) && ord.items.length > 0) {
+              const isEligibleOrder = ord && ord.id && (ord.order_status === 'Placed' || !ord.order_status) && ord.order_status !== 'Cancelled' && ord.order_status !== 'Rejected';
+              if (isEligibleOrder && !processedStockOrderIds.current.has(ord.id) && Array.isArray(ord.items) && ord.items.length > 0) {
                 processedStockOrderIds.current.add(ord.id);
                 setProducts(prev => {
                   const next = deductOrderStockFromProducts(prev, ord.items);
@@ -1552,7 +1553,7 @@ export function StoreProvider({ children }) {
           // Direct Realtime WebSocket Broadcast (< 30ms latency)
           if ((event === 'NEW_ORDER' || event === 'ORDER_STATUS_CHANGED') && payload) {
             mergeAndSyncOrders([payload], true);
-            if (event === 'NEW_ORDER' && payload?.id && Array.isArray(payload.items) && payload.items.length > 0) {
+            if (event === 'NEW_ORDER' && payload?.id && (payload.order_status === 'Placed' || !payload.order_status) && Array.isArray(payload.items) && payload.items.length > 0) {
               if (!processedStockOrderIds.current.has(payload.id)) {
                 processedStockOrderIds.current.add(payload.id);
                 setProducts(prev => {
@@ -1566,6 +1567,7 @@ export function StoreProvider({ children }) {
                 const cancelKey = `${payload.id}_cancelled`;
                 if (!processedStockOrderIds.current.has(cancelKey)) {
                   processedStockOrderIds.current.add(cancelKey);
+                  processedStockOrderIds.current.add(payload.id);
                   setProducts(prev => {
                     const next = restoreOrderStockToProducts(prev, payload.items);
                     try { localStorage.setItem('gk_products', JSON.stringify(next)); } catch {}
