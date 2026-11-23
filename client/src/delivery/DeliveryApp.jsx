@@ -12,7 +12,7 @@ import {
   saveStoredCashLedger, queueOfflineAction, flushOfflineQueue, 
   syncPartnerLocationToFirebase 
 } from './storage.js';
-import { fetchNodeFromSupabase, updateNodeItemInSupabase, syncNodeToSupabase } from '../supabase.js';
+import { fetchNodeFromSupabase, updateNodeItemInSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { restoreOrderStockToProducts } from '../context/StoreContext.jsx';
 import { playAcceptChime, playDeliveredChime } from './audio.js';
 
@@ -380,6 +380,31 @@ export default function DeliveryApp() {
           assigned_staff_id: partner.id,
           timeline: targetOrder?.timeline || []
         });
+
+        // Instant Realtime broadcast to Admin Panel & customer apps (< 30ms)
+        if (targetOrder) {
+          broadcastStoreEvent('ORDER_STATUS_CHANGED', {
+            ...targetOrder,
+            order_status: newStatus,
+            updated_at: nowIso,
+            assigned_staff_id: partner.id
+          });
+        }
+
+        // When order reaches Delivered, Cancelled or Rejected, purge from orders_inbox
+        if (['Delivered', 'Cancelled', 'Rejected'].includes(newStatus)) {
+          (async () => {
+            try {
+              const inboxData = await fetchNodeFromSupabase('orders_inbox');
+              if (Array.isArray(inboxData) && inboxData.length > 0) {
+                const cleanedInbox = inboxData.filter(io => 
+                  io && String(io.id) !== String(orderId) && !['Delivered', 'Cancelled', 'Rejected'].includes(io.order_status)
+                );
+                await syncNodeToSupabase('orders_inbox', cleanedInbox);
+              }
+            } catch {}
+          })();
+        }
 
         if (newStatus === 'Cancelled' && Array.isArray(targetOrder?.items) && targetOrder.items.length > 0) {
           const remoteProds = await fetchNodeFromSupabase('products');

@@ -1287,8 +1287,10 @@ export function StoreProvider({ children }) {
         const rRank = statusRank[existingRemote.order_status] || 0;
         const lRank = statusRank[lOrder.order_status] || 0;
 
-        if (lTime > rTime + 1000 || (lRank > rRank && lTime >= rTime)) {
-          orderMap.set(lOrder.id, lOrder);
+        // Terminal/higher rank (e.g. Delivered or Cancelled) always takes precedence over lower rank (Placed, Out for Delivery)
+        // If same rank, strictly newer timestamp takes precedence
+        if (lRank > rRank || (lRank === rRank && lTime > rTime + 1000)) {
+          orderMap.set(lOrder.id, { ...existingRemote, ...lOrder });
           needsRemoteHeal = true;
         }
       }
@@ -1334,6 +1336,36 @@ export function StoreProvider({ children }) {
     }
   };
 
+  // Safe combiner for orders and orders_inbox: never allows lower-rank stale inbox status to downgrade higher-rank status
+  const combineOrdersAndInbox = (sbOrders, sbInbox) => {
+    const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
+    const map = new Map();
+    if (Array.isArray(sbOrders)) {
+      for (const ord of sbOrders) {
+        if (ord && ord.id) map.set(ord.id, ord);
+      }
+    }
+    if (Array.isArray(sbInbox)) {
+      for (const inOrd of sbInbox) {
+        if (!inOrd || !inOrd.id) continue;
+        const existing = map.get(inOrd.id);
+        if (!existing) {
+          map.set(inOrd.id, inOrd);
+        } else {
+          const exRank = statusRank[existing.order_status] || 0;
+          const inRank = statusRank[inOrd.order_status] || 0;
+          const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+          const inTime = new Date(inOrd.updated_at || inOrd.created_at || 0).getTime();
+          // Inbox item only replaces if it has higher rank (e.g. Cancelled/Delivered), or same rank with strictly newer timestamp
+          if (inRank > exRank || (inRank === exRank && inTime > exTime)) {
+            map.set(inOrd.id, { ...existing, ...inOrd });
+          }
+        }
+      }
+    }
+    return Array.from(map.values());
+  };
+
   // Fast lightweight poll from Supabase store_kv with sub-50ms inbox checks
   const pollOrdersFast = async () => {
     if (isPollingOrdersRef.current) return;
@@ -1354,14 +1386,7 @@ export function StoreProvider({ children }) {
           fetchNodeFromSupabase('settings')
         ]);
         if (!isRecentOrderWrite) {
-          let combinedOrders = [];
-          if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
-          if (Array.isArray(sbInbox)) {
-            const combinedMap = new Map();
-            combinedOrders.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-            sbInbox.forEach(o => { if (o && o.id) combinedMap.set(o.id, o); });
-            combinedOrders = Array.from(combinedMap.values());
-          }
+          const combinedOrders = combineOrdersAndInbox(sbOrders, sbInbox);
           if (combinedOrders.length > 0) {
             await mergeAndSyncOrders(combinedOrders, true);
           }
@@ -1372,7 +1397,21 @@ export function StoreProvider({ children }) {
       } else {
         const sbInbox = await sbInboxPromise;
         if (!isRecentOrderWrite && Array.isArray(sbInbox) && sbInbox.length > 0) {
-          await mergeAndSyncOrders(sbInbox, true);
+          const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
+          const activeInbox = sbInbox.filter(io => {
+            if (!io || !io.id) return false;
+            if (['Delivered', 'Cancelled', 'Rejected'].includes(io.order_status)) return false;
+            const existing = orders.find(o => o && o.id === io.id);
+            if (existing) {
+              const exRank = statusRank[existing.order_status] || 0;
+              const inRank = statusRank[io.order_status] || 0;
+              if (exRank >= 5 && inRank < exRank) return false;
+            }
+            return true;
+          });
+          if (activeInbox.length > 0) {
+            await mergeAndSyncOrders(activeInbox, true);
+          }
         }
       }
     } catch {} finally {
@@ -1401,14 +1440,7 @@ export function StoreProvider({ children }) {
             fetchNodeFromSupabase('wallets')
           ]);
 
-          let combinedOrders = [];
-          if (Array.isArray(sbOrders)) combinedOrders = [...sbOrders];
-          if (Array.isArray(sbInbox)) {
-            const orderMap = new Map();
-            combinedOrders.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
-            sbInbox.forEach(o => { if (o && o.id) orderMap.set(o.id, o); });
-            combinedOrders = Array.from(orderMap.values());
-          }
+          const combinedOrders = combineOrdersAndInbox(sbOrders, sbInbox);
           if (Array.isArray(sbOrders) || combinedOrders.length > 0) {
             await mergeAndSyncOrders(combinedOrders, isBackgroundPoll);
           }

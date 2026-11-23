@@ -2099,6 +2099,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         fetchNodeFromSupabase('orders_inbox')
       ]);
 
+      const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
       const combinedMap = new Map();
       if (Array.isArray(remoteList)) {
         for (const ro of remoteList) {
@@ -2107,12 +2108,38 @@ Thank you for shopping with ${storeName}! 🙏`;
       }
       if (Array.isArray(inboxList)) {
         for (const io of inboxList) {
-          if (io && io.id) combinedMap.set(io.id, io);
+          if (!io || !io.id) continue;
+          const existing = combinedMap.get(io.id);
+          if (!existing) {
+            combinedMap.set(io.id, io);
+          } else {
+            const exRank = statusRank[existing.order_status] || 0;
+            const inRank = statusRank[io.order_status] || 0;
+            const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+            const inTime = new Date(io.updated_at || io.created_at || 0).getTime();
+            if (inRank > exRank || (inRank === exRank && inTime > exTime)) {
+              combinedMap.set(io.id, { ...existing, ...io });
+            }
+          }
         }
       }
       for (const lo of updatedList) {
-        if (lo && lo.id) {
+        if (!lo || !lo.id) continue;
+        const existing = combinedMap.get(lo.id);
+        if (!existing) {
           combinedMap.set(lo.id, lo);
+        } else {
+          if (String(lo.id) === String(orderId)) {
+            combinedMap.set(lo.id, lo);
+          } else {
+            const exRank = statusRank[existing.order_status] || 0;
+            const loRank = statusRank[lo.order_status] || 0;
+            const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+            const loTime = new Date(lo.updated_at || lo.created_at || 0).getTime();
+            if (loRank > exRank || (loRank === exRank && loTime > exTime)) {
+              combinedMap.set(lo.id, { ...existing, ...lo });
+            }
+          }
         }
       }
       updatedList = Array.from(combinedMap.values());
@@ -2131,12 +2158,14 @@ Thank you for shopping with ${storeName}! 🙏`;
       try {
         const inboxData = await fetchNodeFromSupabase('orders_inbox');
         if (Array.isArray(inboxData)) {
-          const patchedInbox = inboxData.map(io => {
-            if (io && String(io.id) === String(orderId)) {
-              return { ...io, order_status: newStatus, updated_at: nowIso };
-            }
-            return io;
-          });
+          const patchedInbox = inboxData
+            .map(io => {
+              if (io && String(io.id) === String(orderId)) {
+                return { ...io, order_status: newStatus, updated_at: nowIso };
+              }
+              return io;
+            })
+            .filter(io => io && !['Delivered', 'Cancelled', 'Rejected'].includes(io.order_status));
           await syncNodeToSupabase('orders_inbox', patchedInbox);
         }
       } catch {}
