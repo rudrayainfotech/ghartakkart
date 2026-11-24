@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank, normalizeOrderStatus } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -2105,60 +2105,7 @@ Thank you for shopping with ${storeName}! 🙏`;
       });
     }
 
-    // 2. Fetch latest remote orders AND orders_inbox from Supabase, merge with local orders so we never overwrite incoming orders
-    try {
-      const [remoteList, inboxList] = await Promise.all([
-        fetchNodeFromSupabase('orders'),
-        fetchNodeFromSupabase('orders_inbox')
-      ]);
-
-      const combinedMap = new Map();
-      if (Array.isArray(remoteList)) {
-        for (const ro of remoteList) {
-          if (ro && ro.id) combinedMap.set(ro.id, ro);
-        }
-      }
-      if (Array.isArray(inboxList)) {
-        for (const io of inboxList) {
-          if (!io || !io.id) continue;
-          if (String(io.id) === String(orderId)) continue; // Never override currently edited order from inbox
-          const existing = combinedMap.get(io.id);
-          if (!existing) {
-            combinedMap.set(io.id, io);
-          } else {
-            const exRank = getOrderStatusRank(existing);
-            const inRank = getOrderStatusRank(io);
-            const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
-            const inTime = new Date(io.updated_at || io.created_at || 0).getTime();
-            if (inTime > exTime || inRank > exRank) {
-              combinedMap.set(io.id, { ...existing, ...io });
-            }
-          }
-        }
-      }
-      for (const lo of updatedList) {
-        if (!lo || !lo.id) continue;
-        const existing = combinedMap.get(lo.id);
-        if (!existing) {
-          combinedMap.set(lo.id, lo);
-        } else {
-          if (String(lo.id) === String(orderId)) {
-            combinedMap.set(lo.id, lo);
-          } else {
-            const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
-            const loTime = new Date(lo.updated_at || lo.created_at || 0).getTime();
-            if (loTime >= exTime) {
-              combinedMap.set(lo.id, { ...existing, ...lo });
-            }
-          }
-        }
-      }
-      updatedList = Array.from(combinedMap.values());
-      updatedList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-      setOrders(updatedList);
-      try { localStorage.setItem('gk_orders', JSON.stringify(updatedList.slice(0, 100))); } catch {}
-    } catch {}
-
+    // 2. Persist update directly to Supabase without slow blocking pre-fetch
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
     if (updatedOrder) {
@@ -2757,7 +2704,8 @@ Thank you for shopping with ${storeName}! 🙏`;
               city: (editingFullOrder.city || '').trim() || o.address?.city
             },
             delivery_slot: editingFullOrder.delivery_slot,
-            order_status: editingFullOrder.order_status,
+            order_status: normalizeOrderStatus(editingFullOrder.order_status),
+            status: normalizeOrderStatus(editingFullOrder.order_status),
             payment_method: editingFullOrder.payment_method,
             payment_status: editingFullOrder.payment_status,
             admin_remark: (editingFullOrder.admin_remark || '').trim(),
@@ -2808,30 +2756,6 @@ Thank you for shopping with ${storeName}! 🙏`;
     }
 
     setIsFullEditOrderModalOpen(false);
-
-    try {
-      const remoteData = await fetchNodeFromSupabase('orders');
-      if (remoteData) {
-        const remoteList = Array.isArray(remoteData)
-          ? remoteData.filter(Boolean)
-          : remoteData && typeof remoteData === 'object'
-          ? Object.values(remoteData).filter(Boolean)
-          : [];
-        const combinedMap = new Map();
-        for (const ro of remoteList) {
-          if (ro && ro.id) combinedMap.set(ro.id, ro);
-        }
-        for (const lo of updatedList) {
-          if (lo && lo.id && !combinedMap.has(lo.id)) {
-            combinedMap.set(lo.id, lo);
-          }
-        }
-        updatedList = applyOrderFullUpdate(Array.from(combinedMap.values()));
-        updatedList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-        setOrders(updatedList);
-        try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
-      }
-    } catch {}
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
@@ -5925,7 +5849,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="text-xs font-bold text-gray-700">Update Status:</span>
                           <select
-                            value={order.order_status}
+                            value={normalizeOrderStatus(order.order_status || order.status)}
                             onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value, order.assigned_staff_id)}
                             className={`text-xs font-black rounded-xl px-3 py-1.5 border transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm ${
                               isOrderDelivered(order)
@@ -15177,13 +15101,13 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                       Order Status
                     </label>
                     <select
-                      value={editingFullOrder.order_status}
+                      value={normalizeOrderStatus(editingFullOrder.order_status)}
                       onChange={(e) => setEditingFullOrder({ ...editingFullOrder, order_status: e.target.value })}
                       className="w-full px-3 py-2 rounded-xl border border-gray-300 text-xs font-bold bg-white focus:outline-none focus:border-brand-600"
                     >
-                      <option value="Pending">⏳ Pending</option>
-                      <option value="Confirmed">✅ Confirmed</option>
-                      <option value="Preparing">🍳 Preparing</option>
+                      <option value="Placed">⏳ Placed</option>
+                      <option value="Accepted">✅ Accepted</option>
+                      <option value="Packing">🍳 Packing</option>
                       <option value="Out for Delivery">🚴 Out for Delivery</option>
                       <option value="Delivered">🎉 Delivered</option>
                       <option value="Cancelled">❌ Cancelled</option>

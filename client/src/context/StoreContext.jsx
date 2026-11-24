@@ -408,6 +408,19 @@ export const isOrderCancelled = (order) => {
   return os === 'cancelled' || os === 'rejected' || st === 'cancelled' || st === 'rejected';
 };
 
+// Universal Order Status Normalizer
+export const normalizeOrderStatus = (raw) => {
+  if (!raw) return 'Placed';
+  const s = String(raw).trim().toLowerCase();
+  if (s === 'delivered' || s === 'completed') return 'Delivered';
+  if (s === 'cancelled' || s === 'rejected') return 'Cancelled';
+  if (s === 'out for delivery' || s === 'dispatched' || s === 'on the way') return 'Out for Delivery';
+  if (s === 'packing' || s === 'processing' || s === 'preparing') return 'Packing';
+  if (s === 'accepted' || s === 'confirmed') return 'Accepted';
+  if (s === 'placed' || s === 'pending') return 'Placed';
+  return 'Placed';
+};
+
 // Universal Order Status Hierarchy Rank Resolver
 export const getOrderStatusRank = (orderOrStatus) => {
   if (!orderOrStatus) return 0;
@@ -1344,6 +1357,15 @@ export function StoreProvider({ children }) {
 
         if (isRecent || lTime > rTime) {
           orderMap.set(lOrder.id, { ...existingRemote, ...lOrder });
+        }
+      }
+    }
+
+    // Re-apply any recently updated orders from this session (guarantees local edits are never reverted by remote polls)
+    if (window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.size > 0) {
+      for (const [id, record] of window.__gkRecentlyUpdatedOrders.entries()) {
+        if (record && record.order && (Date.now() - record.time < 30000)) {
+          orderMap.set(id, record.order);
         }
       }
     }

@@ -69,7 +69,7 @@ export default function CartDrawer() {
     });
   }, [userLocation?.distance_km, cart, settings]);
 
-  if (!isCartOpen || !customerUser?.isLoggedIn) return null;
+  if (!isCartOpen) return null;
 
   const storeStatus = getStoreOperatingStatus(settings);
 
