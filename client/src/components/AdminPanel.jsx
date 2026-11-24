@@ -1960,6 +1960,7 @@ Thank you for shopping with ${storeName}! 🙏`;
           return {
             ...o,
             order_status: newStatus,
+            status: newStatus,
             earned_stamp: isNowCancelled ? false : o.earned_stamp,
             cancel_reason: isNowCancelled ? (o.cancel_reason || 'Order cancelled by store') : o.cancel_reason,
             scratch_card: isNowCancelled && o.scratch_card ? {
@@ -2164,14 +2165,20 @@ Thank you for shopping with ${storeName}! 🙏`;
       try {
         const inboxData = await fetchNodeFromSupabase('orders_inbox');
         if (Array.isArray(inboxData)) {
+          const isTerminal = ['Delivered', 'Cancelled', 'Rejected'].includes(newStatus);
           const patchedInbox = inboxData
             .map(io => {
               if (io && String(io.id) === String(orderId)) {
-                return { ...io, order_status: newStatus, updated_at: nowIso };
+                return { ...io, order_status: newStatus, status: newStatus, updated_at: nowIso };
               }
               return io;
             })
-            .filter(io => io && !['Delivered', 'Cancelled', 'Rejected'].includes(io.order_status));
+            .filter(io => {
+              if (!io || !io.id) return false;
+              if (String(io.id) === String(orderId) && isTerminal) return false;
+              const st = io.order_status || io.status;
+              return !['Delivered', 'Cancelled', 'Rejected'].includes(st);
+            });
           await syncNodeToSupabase('orders_inbox', patchedInbox);
         }
       } catch {}

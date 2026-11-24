@@ -46,6 +46,9 @@ export async function requestNotificationPermission() {
 export async function sendOrderNotification(order, skipSound = false) {
   if (!order) return;
 
+  const st = String(order.order_status || order.status || '').toLowerCase();
+  if (st && st !== 'placed' && st !== 'pending') return;
+
   // 1. Play the uploaded custom order alert tone & vibrate mobile device
   if (!skipSound) {
     try {

@@ -3,7 +3,7 @@ import { calculateHaversineDistance, getStoreOperatingStatus } from '../utils/ha
 import { playChime } from '../utils/sound.js';
 import { sendOrderNotification } from '../utils/notifications.js';
 import { UNIFIED_DEFAULT_PRODUCTS } from '../data/unifiedProducts.js';
-import { supabase, isSupabaseConfigured, syncNodeToSupabase, fetchNodeFromSupabase, subscribeStoreKv, broadcastStoreEvent } from '../supabase.js';
+import { supabase, isSupabaseConfigured, syncNodeToSupabase, updateNodeItemInSupabase, fetchNodeFromSupabase, subscribeStoreKv, broadcastStoreEvent } from '../supabase.js';
 
 const StoreContext = createContext();
 
@@ -1348,11 +1348,6 @@ export function StoreProvider({ children }) {
       }
     }
 
-    // Also check if remote had fake orders that need to be cleared from remote
-    if (rawRemote.length !== remoteList.length) {
-      needsRemoteHeal = true;
-    }
-
     const mergedOrders = Array.from(orderMap.values()).sort(
       (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
     );
@@ -1365,11 +1360,16 @@ export function StoreProvider({ children }) {
     );
 
     if (isAdminTerminal && knownOrderIdsRef.current.size > 0) {
+      const now = Date.now();
       const newOrders = mergedOrders.filter(o => {
         if (!o || !o.id) return false;
         if (knownOrderIdsRef.current.has(o.id)) return false;
         const st = String(o.order_status || o.status || '').toLowerCase();
-        return st === 'placed' || st === 'pending' || !st;
+        const isPlaced = st === 'placed' || st === 'pending';
+        if (!isPlaced) return false;
+        // Strictly only chime for orders created within the last 15 minutes
+        const orderTime = new Date(o.created_at || 0).getTime();
+        return (now - orderTime) < 15 * 60 * 1000;
       });
       if (newOrders.length > 0) {
         if (adminSoundEnabled) {
@@ -1390,9 +1390,8 @@ export function StoreProvider({ children }) {
       localStorage.setItem('gk_orders', JSON.stringify(mergedOrders.slice(0, 100)));
     } catch {}
 
-    if (needsRemoteHeal && mergedOrders.length > 0 && remoteList.length > 0) {
-      await syncToFirebase('orders', mergedOrders);
-    }
+    // Background poll is strictly read-only and never overwrites remote database
+    // All remote writes are strictly reserved for explicit user actions (place, edit, status update)
   };
 
   // Safe combiner for orders and orders_inbox: never allows lower-rank stale inbox status to downgrade higher-rank status
@@ -2362,8 +2361,8 @@ export function StoreProvider({ children }) {
 
     const nextOrders = orders.map(o => o.id === orderId ? updatedOrder : o);
     setOrders(nextOrders);
-    try { localStorage.setItem('gk_orders', JSON.stringify(nextOrders)); } catch {}
-    syncNodeToSupabase('orders', nextOrders).catch(() => {});
+    try { localStorage.setItem('gk_orders', JSON.stringify(nextOrders.slice(0, 100))); } catch {}
+    updateNodeItemInSupabase('orders', orderId, { scratch_card: updatedCard }).catch(() => {});
 
     return updatedCard;
   };
@@ -2415,8 +2414,8 @@ export function StoreProvider({ children }) {
 
       const updatedOrders = orders.map(o => o.id === targetOrder.id ? { ...o, scratch_card: cancelledCard } : o);
       setOrders(updatedOrders);
-      try { localStorage.setItem('gk_orders', JSON.stringify(updatedOrders)); } catch {}
-      syncNodeToSupabase('orders', updatedOrders).catch(() => {});
+      try { localStorage.setItem('gk_orders', JSON.stringify(updatedOrders.slice(0, 100))); } catch {}
+      updateNodeItemInSupabase('orders', targetOrder.id, { scratch_card: cancelledCard }).catch(() => {});
     }
 
     return { revoked: wasCredited, amount: cashbackAmount };

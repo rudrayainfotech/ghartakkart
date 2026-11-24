@@ -356,6 +356,7 @@ export default function DeliveryApp() {
         return {
           ...o,
           order_status: newStatus,
+          status: newStatus,
           updated_at: nowIso,
           timeline
         };
@@ -376,6 +377,7 @@ export default function DeliveryApp() {
       try {
         await updateNodeItemInSupabase('orders', orderId, {
           order_status: newStatus,
+          status: newStatus,
           updated_at: nowIso,
           assigned_staff_id: partner.id,
           timeline: targetOrder?.timeline || []
