@@ -727,14 +727,7 @@ export function StoreProvider({ children }) {
       const saved = localStorage.getItem('gk_orders');
       const parsed = saved ? JSON.parse(saved) : [];
       if (Array.isArray(parsed)) {
-        const FAKE_NAMES = new Set([
-          'Mayank Agrawal', 'Rahul Sharma', 'Amit Kumar', 'Pooja Verma', 'Rohit Singh',
-          'Deepak Gupta', 'Suresh Chandra', 'Priya Bansal', 'Vikram Singh', 'Neha Sharma',
-          'Manoj Kumar', 'Sunita Devi', 'Dharmendra Singh', 'Ankit Sharma', 'Rajeev Kumar',
-          'Sanjay Agrawal', 'Vipin Kumar', 'Gaurav Chaudhary', 'Kavita Rani', 'Sachin Kumar',
-          'Rahul Verma', 'Pooja Malhotra'
-        ]);
-        return parsed.filter(o => o && o.id && !FAKE_NAMES.has(o.customer_name));
+        return parsed.filter(o => o && o.id);
       }
       return [];
     } catch {
@@ -1289,21 +1282,8 @@ export function StoreProvider({ children }) {
     const isRecentLocalWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2500);
     if (isRecentLocalWrite) return;
 
-    // Filter out dummy/synthetic orders so store only reflects real orders
-    const FAKE_NAMES = new Set([
-      'Mayank Agrawal', 'Rahul Sharma', 'Amit Kumar', 'Pooja Verma', 'Rohit Singh',
-      'Deepak Gupta', 'Suresh Chandra', 'Priya Bansal', 'Vikram Singh', 'Neha Sharma',
-      'Manoj Kumar', 'Sunita Devi', 'Dharmendra Singh', 'Ankit Sharma', 'Rajeev Kumar',
-      'Sanjay Agrawal', 'Vipin Kumar', 'Gaurav Chaudhary', 'Kavita Rani', 'Sachin Kumar',
-      'Rahul Verma', 'Pooja Malhotra'
-    ]);
-    const isGenuineOrder = (o) => {
-      if (!o || !o.id) return false;
-      if (FAKE_NAMES.has(o.customer_name) && o.order_status === 'Delivered') {
-        return false;
-      }
-      return true;
-    };
+    // Ensure valid order objects with an id are kept
+    const isGenuineOrder = (o) => Boolean(o && typeof o === 'object' && o.id);
 
     const rawRemote = normalizeFirebaseList(remoteOrdersRaw) || [];
     const remoteList = rawRemote.filter(isGenuineOrder);
@@ -1862,7 +1842,7 @@ export function StoreProvider({ children }) {
           ...prev,
           lat,
           lng,
-          addressText: (prev.isAutoDetected && prev.addressText && !prev.addressText.includes('Auto-detecting') && !prev.addressText.includes('Main Market'))
+          addressText: (prev.isAutoDetected && prev.addressText && !prev.addressText.includes('Auto-detecting') && !prev.addressText.includes('Detecting') && !prev.addressText.includes('Main Market'))
             ? prev.addressText
             : initialAddr,
           label: 'Current Location',

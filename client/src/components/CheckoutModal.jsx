@@ -571,6 +571,9 @@ export default function CheckoutModal() {
     let finalLat = extraMeta?.lat ?? (Number(userLocation.lat) || Number(settings?.store_lat) || 27.941887);
     let finalLng = extraMeta?.lng ?? (Number(userLocation.lng) || Number(settings?.store_lng) || 77.843715);
     let finalAddrText = extraMeta?.addrText || userLocation.addressText || 'Selected Address, Khair';
+    if (!finalAddrText || finalAddrText.toLowerCase().includes('detecting')) {
+      finalAddrText = userLocation.landmark || (userLocation.lat && userLocation.lng ? `Khair (${Number(userLocation.lat).toFixed(4)}, ${Number(userLocation.lng).toFixed(4)})` : 'Khair Central');
+    }
 
     const storeOriginLat = extraMeta?.storeLat ?? (Number(settings?.store_lat) || 27.941887);
     const storeOriginLng = extraMeta?.storeLng ?? (Number(settings?.store_lng) || 77.843715);
@@ -822,7 +825,9 @@ export default function CheckoutModal() {
       customer_phone: cleanPhone,
       address: {
         label: userLocation.label || 'Home',
-        line1: userLocation.addressText || 'Selected Address, Khair',
+        line1: (userLocation.addressText && !userLocation.addressText.toLowerCase().includes('detecting'))
+          ? userLocation.addressText
+          : (userLocation.landmark || (finalLat && finalLng ? `Khair (${Number(finalLat).toFixed(4)}, ${Number(finalLng).toFixed(4)})` : 'Selected Address, Khair')),
         landmark: userLocation.landmark || '',
         city: 'Khair',
         pincode: '202138',

@@ -5628,7 +5628,9 @@ Thank you for shopping with ${storeName}! 🙏`;
                               </span>
                             </div>
                             <p className="text-xs text-gray-500 mt-0.5">
-                              {order.address?.line1 || 'Delivery Address'} • {order.delivery_slot || 'ASAP (25-35 mins)'}
+                              {(order.address?.line1 && !order.address.line1.toLowerCase().includes('detecting'))
+                                ? order.address.line1
+                                : (order.address?.landmark || 'Khair Central')} • {order.delivery_slot || 'ASAP (25-35 mins)'}
                             </p>
                           </div>
                         </div>
@@ -5802,7 +5804,11 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-gray-700 text-[11px] pt-1.5 border-t border-emerald-200">
                           <div>
                             <span className="text-gray-500 font-medium">Delivery Address: </span>
-                            <strong className="text-gray-900">{order.address?.line1 || 'Main Market, Khair'}</strong>
+                            <strong className="text-gray-900">
+                              {(order.address?.line1 && !order.address.line1.toLowerCase().includes('detecting'))
+                                ? order.address.line1
+                                : (order.address?.landmark || 'Khair Central')}
+                            </strong>
                             {order.address?.landmark && (
                               <span className="text-gray-600 block">Landmark: {order.address.landmark}</span>
                             )}
