@@ -100,58 +100,10 @@ export async function syncNodeToSupabase(key, data) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
   const nowIso = new Date().toISOString();
 
-  let payloadToSync = data;
-  // Guard 'orders' from accidental truncation and status downgrade (e.g. Delivered reverting to Packing)
-  if (key === 'orders' && Array.isArray(data)) {
-    try {
-      const remoteOrders = await directRestFetch('orders');
-      if (Array.isArray(remoteOrders) && remoteOrders.length > 0) {
-        const orderMap = new Map();
-        for (const ro of remoteOrders) {
-          if (ro && ro.id) orderMap.set(String(ro.id), ro);
-        }
-        for (const io of data) {
-          if (!io || !io.id) continue;
-          const id = String(io.id);
-          const existing = orderMap.get(id);
-          if (!existing) {
-            orderMap.set(id, io);
-          } else {
-            const exRank = getOrderRank(existing);
-            const inRank = getOrderRank(io);
-            const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
-            const inTime = new Date(io.updated_at || io.created_at || 0).getTime();
-
-            // Terminal status Delivered (5) or Cancelled (6) cannot be downgraded by lower rank
-            if (exRank >= 5 && inRank < exRank) {
-              orderMap.set(id, {
-                ...io,
-                ...existing,
-                order_status: existing.order_status || existing.status,
-                status: existing.status || existing.order_status
-              });
-            } else if (inRank > exRank || (inRank === exRank && inTime >= exTime)) {
-              orderMap.set(id, {
-                ...existing,
-                ...io,
-                order_status: io.order_status || io.status || existing.order_status,
-                status: io.status || io.order_status || existing.status
-              });
-            } else {
-              orderMap.set(id, {
-                ...io,
-                ...existing
-              });
-            }
-          }
-        }
-        payloadToSync = Array.from(orderMap.values()).sort(
-          (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
-        );
-      }
-    } catch (err) {
-      console.warn('[Supabase Sync] Safe orders merge guard warning:', err);
-    }
+  // Guard 'orders' from accidental truncation by uninitialized empty arrays
+  if (key === 'orders' && (!Array.isArray(data) || data.length === 0)) {
+    console.warn('[Supabase Sync] Refusing to overwrite orders with empty or non-array payload');
+    return false;
   }
 
   try {
@@ -159,7 +111,7 @@ export async function syncNodeToSupabase(key, data) {
       const { error, count } = await supabase
         .from('store_kv')
         .update({
-          data: payloadToSync,
+          data: data,
           updated_at: nowIso
         })
         .eq('key', String(key));
@@ -170,7 +122,7 @@ export async function syncNodeToSupabase(key, data) {
         .from('store_kv')
         .upsert({
           key: String(key),
-          data: payloadToSync,
+          data: data,
           updated_at: nowIso
         }, { onConflict: 'key' });
 
@@ -181,7 +133,7 @@ export async function syncNodeToSupabase(key, data) {
     console.warn(`[Supabase Sync] Error writing to ${key}:`, err);
   }
   // Robust HTTP fallback
-  return await directRestUpsert(key, payloadToSync);
+  return await directRestUpsert(key, data);
 }
 
 // Alias for seamless backward compatibility
@@ -221,14 +173,8 @@ export async function updateNodeItemInSupabase(nodeKey, itemId, patchData) {
     if (Array.isArray(existing)) {
       const idx = existing.findIndex(i => i && (i.id === itemId || i._id === itemId));
       if (idx !== -1) {
-        const currentItem = existing[idx];
-        const curRank = getOrderRank(currentItem);
-        const patchRank = getOrderRank(patchData);
-        const safePatch = (nodeKey === 'orders' && curRank >= 5 && patchRank > 0 && patchRank < curRank)
-          ? { ...patchData, order_status: currentItem.order_status || currentItem.status, status: currentItem.status || currentItem.order_status }
-          : patchData;
         updated = [...existing];
-        updated[idx] = { ...updated[idx], ...safePatch, updated_at: new Date().toISOString() };
+        updated[idx] = { ...updated[idx], ...patchData, updated_at: new Date().toISOString() };
       } else {
         updated = [{ id: itemId, ...patchData, updated_at: new Date().toISOString() }, ...existing];
       }

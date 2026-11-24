@@ -1985,7 +1985,12 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     // 1. Synchronously compute updated list and update local state immediately
     window.__gkLastOrderWrite = Date.now();
+    window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
     let updatedList = applyStatusUpdate(orders);
+    const targetUpdated = updatedList.find(o => o.id === orderId);
+    if (targetUpdated) {
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: targetUpdated, time: Date.now() });
+    }
     setOrders(updatedList);
     try { localStorage.setItem('gk_orders', JSON.stringify(updatedList.slice(0, 100))); } catch {}
 
@@ -2116,6 +2121,7 @@ Thank you for shopping with ${storeName}! 🙏`;
       if (Array.isArray(inboxList)) {
         for (const io of inboxList) {
           if (!io || !io.id) continue;
+          if (String(io.id) === String(orderId)) continue; // Never override currently edited order from inbox
           const existing = combinedMap.get(io.id);
           if (!existing) {
             combinedMap.set(io.id, io);
@@ -2124,7 +2130,7 @@ Thank you for shopping with ${storeName}! 🙏`;
             const inRank = getOrderStatusRank(io);
             const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
             const inTime = new Date(io.updated_at || io.created_at || 0).getTime();
-            if (inRank > exRank || (inRank === exRank && inTime > exTime)) {
+            if (inTime > exTime || inRank > exRank) {
               combinedMap.set(io.id, { ...existing, ...io });
             }
           }
@@ -2139,11 +2145,9 @@ Thank you for shopping with ${storeName}! 🙏`;
           if (String(lo.id) === String(orderId)) {
             combinedMap.set(lo.id, lo);
           } else {
-            const exRank = getOrderStatusRank(existing);
-            const loRank = getOrderStatusRank(lo);
             const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
             const loTime = new Date(lo.updated_at || lo.created_at || 0).getTime();
-            if (loRank > exRank || (loRank === exRank && loTime > exTime)) {
+            if (loTime >= exTime) {
               combinedMap.set(lo.id, { ...existing, ...lo });
             }
           }
@@ -2157,7 +2161,11 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
-    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    if (updatedOrder) {
+      window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: updatedOrder, time: Date.now() });
+      broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    }
     await syncToFirebase('orders', updatedList);
 
     // Also update orders_inbox in Supabase so old 'Placed' state does not linger
@@ -2248,7 +2256,11 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
-    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    if (updatedOrder) {
+      window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: updatedOrder, time: Date.now() });
+      broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    }
     await syncToFirebase('orders', updatedList);
   };
 
@@ -2392,7 +2404,11 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
-    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    if (updatedOrder) {
+      window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: updatedOrder, time: Date.now() });
+      broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    }
     await syncToFirebase('orders', updatedList);
     alert(`✅ Vendor "${finalVendorName || 'Cleared'}" saved for Order #${orderId}!`);
   };
@@ -2570,7 +2586,11 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
-    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    if (updatedOrder) {
+      window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: updatedOrder, time: Date.now() });
+      broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    }
     await syncToFirebase('orders', updatedList);
   };
 
@@ -2815,7 +2835,11 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     window.__gkLastOrderWrite = Date.now();
     const updatedOrder = updatedList.find(o => o.id === orderId);
-    if (updatedOrder) broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    if (updatedOrder) {
+      window.__gkRecentlyUpdatedOrders = window.__gkRecentlyUpdatedOrders || new Map();
+      window.__gkRecentlyUpdatedOrders.set(orderId, { order: updatedOrder, time: Date.now() });
+      broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
+    }
     await syncToFirebase('orders', updatedList);
 
     alert(`✅ Order #${orderId} successfully updated!`);

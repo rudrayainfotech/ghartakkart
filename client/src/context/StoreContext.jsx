@@ -1261,6 +1261,15 @@ export function StoreProvider({ children }) {
   // Targeted single order merger for real-time WebSocket events and inbox polls (never clobbers full order list)
   const mergeSingleOrder = (incomingOrder) => {
     if (!incomingOrder || !incomingOrder.id) return;
+
+    // If order was recently updated by admin in this window, keep the local version
+    if (window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.has(incomingOrder.id)) {
+      const recent = window.__gkRecentlyUpdatedOrders.get(incomingOrder.id);
+      if (Date.now() - recent.time < 15000) {
+        return;
+      }
+    }
+
     setOrders(prevOrders => {
       const currentList = Array.isArray(prevOrders) ? [...prevOrders] : [];
       const idx = currentList.findIndex(o => o && o.id === incomingOrder.id);
@@ -1271,12 +1280,10 @@ export function StoreProvider({ children }) {
         );
       } else {
         const existing = currentList[idx];
-        const exRank = getOrderStatusRank(existing);
-        const inRank = getOrderStatusRank(incomingOrder);
         const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
         const inTime = new Date(incomingOrder.updated_at || incomingOrder.created_at || 0).getTime();
 
-        if (inRank > exRank || (inRank === exRank && inTime >= exTime)) {
+        if (inTime >= exTime) {
           currentList[idx] = { ...existing, ...incomingOrder };
           nextList = [...currentList];
         } else {
@@ -1294,7 +1301,7 @@ export function StoreProvider({ children }) {
   // Smart Order Merger: merges Supabase orders with local gk_orders by updated_at
   // and automatically heals Supabase store_kv if local orders were missing remotely
   const mergeAndSyncOrders = async (remoteOrdersRaw, isBackgroundPoll = false) => {
-    const isRecentLocalWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2500);
+    const isRecentLocalWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 8000);
     if (isRecentLocalWrite) return;
 
     // Ensure valid order objects with an id are kept
@@ -1316,7 +1323,6 @@ export function StoreProvider({ children }) {
         })();
 
     const orderMap = new Map();
-    let needsRemoteHeal = false;
 
     // 1. Put all remote orders in map first
     for (const rOrder of remoteList) {
@@ -1325,25 +1331,19 @@ export function StoreProvider({ children }) {
       }
     }
 
-    // 2. Merge local orders: if a local order is missing on Supabase
-    // or has a strictly newer updated_at timestamp, keep the newer one and heal
+    // 2. Merge local orders: if a local order was recently updated by admin, or has a strictly newer timestamp, keep local
     for (const lOrder of localList) {
       if (!lOrder || !lOrder.id) continue;
       const existingRemote = orderMap.get(lOrder.id);
       if (!existingRemote) {
         orderMap.set(lOrder.id, lOrder);
-        needsRemoteHeal = true;
       } else {
+        const isRecent = window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.has(lOrder.id) && (Date.now() - window.__gkRecentlyUpdatedOrders.get(lOrder.id).time < 15000);
         const rTime = new Date(existingRemote.updated_at || existingRemote.created_at || 0).getTime();
         const lTime = new Date(lOrder.updated_at || lOrder.created_at || 0).getTime();
-        const rRank = getOrderStatusRank(existingRemote);
-        const lRank = getOrderStatusRank(lOrder);
 
-        // Terminal/higher rank (e.g. Delivered or Cancelled) always takes precedence over lower rank (Placed, Out for Delivery)
-        // If same rank, strictly newer timestamp takes precedence
-        if (lRank > rRank || (lRank === rRank && lTime > rTime + 1000)) {
+        if (isRecent || lTime > rTime) {
           orderMap.set(lOrder.id, { ...existingRemote, ...lOrder });
-          needsRemoteHeal = true;
         }
       }
     }
@@ -1428,7 +1428,7 @@ export function StoreProvider({ children }) {
     if (isPollingOrdersRef.current) return;
     isPollingOrdersRef.current = true;
     try {
-      const isRecentOrderWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 2000);
+      const isRecentOrderWrite = window.__gkLastOrderWrite && (Date.now() - window.__gkLastOrderWrite < 8000);
       const now = Date.now();
       const shouldSyncFull = !lastFullOrdersPollRef.current || (now - lastFullOrdersPollRef.current > 6000);
 
