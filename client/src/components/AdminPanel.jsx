@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -239,6 +239,7 @@ export default function AdminPanel() {
   const [selectedOrderForInvoice, setSelectedOrderForInvoice] = useState(null);
   const [isManualOrderModalOpen, setIsManualOrderModalOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [orderSearchQuery, setOrderSearchQuery] = useState('');
   const [productSearch, setProductSearch] = useState('');
   const [copiedDispatchId, setCopiedDispatchId] = useState(null);
   const [selectedRiderForAdmin, setSelectedRiderForAdmin] = useState(null);
@@ -914,10 +915,10 @@ Thank you for shopping with ${storeName}! 🙏`;
   }, [settings]);
 
   // Dashboard Stats Calculations
-  const activeOrders = orders.filter(o => !['Delivered', 'Cancelled', 'Rejected'].includes(o.order_status));
-  const deliveredOrders = orders.filter(o => o.order_status === 'Delivered');
+  const activeOrders = orders.filter(o => !isOrderDelivered(o) && !isOrderCancelled(o));
+  const deliveredOrders = orders.filter(isOrderDelivered);
   const totalRevenue = orders
-    .filter(o => o.order_status !== 'Cancelled' && o.order_status !== 'Rejected')
+    .filter(o => !isOrderCancelled(o))
     .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const lowStockProducts = products.filter(p => p.stock <= 15);
 
@@ -955,7 +956,7 @@ Thank you for shopping with ${storeName}! 🙏`;
 
   // Helper: Compute full P&L metrics for a single order
   const getOrderPnlBreakdown = React.useCallback((order) => {
-    const isCancelled = order?.order_status === 'Cancelled' || order?.order_status === 'Rejected';
+    const isCancelled = isOrderCancelled(order);
     const items = Array.isArray(order?.items) ? order.items : [];
     const totalUnits = items.reduce((s, it) => s + (Number(it?.qty) || 0), 0);
     const itemsCost = items.reduce((s, it) => s + getOrderItemUnitCost(it) * (Number(it?.qty) || 0), 0);
@@ -1002,7 +1003,13 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     orders.forEach(order => {
       if (!order) return;
-      const dateKey = toLocalDateKey(order.created_at);
+      const deliveryTime = (order.timeline && Array.isArray(order.timeline))
+        ? (order.timeline.slice().reverse().find(t => isOrderDelivered(t) || String(t?.status || '').toLowerCase() === 'delivered')?.time)
+        : null;
+      const effectiveDate = isOrderDelivered(order)
+        ? (deliveryTime || order.delivery_time || order.updated_at || order.created_at)
+        : order.created_at;
+      const dateKey = toLocalDateKey(effectiveDate);
       if (!dayMap.has(dateKey)) {
         const dObj = new Date(`${dateKey}T00:00:00`);
         dayMap.set(dateKey, {
@@ -1035,7 +1042,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         dayEntry.cancelledOrders += 1;
       } else {
         dayEntry.validOrders += 1;
-        if (order.order_status === 'Delivered') {
+        if (isOrderDelivered(order)) {
           dayEntry.deliveredOrders += 1;
         }
         dayEntry.unitsSold += pnl.totalUnits;
@@ -3892,11 +3899,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         ];
       });
     } else if (moduleType === 'delivered_orders') {
-      const deliveredList = (orders || []).filter(o => {
-        if (!o) return false;
-        const st = String(o.order_status || '').trim().toLowerCase();
-        return st === 'delivered' || st === 'completed';
-      });
+      const deliveredList = (orders || []).filter(isOrderDelivered);
 
       if (deliveredList.length === 0) {
         alert('No delivered orders found in system yet to export.');
@@ -4156,7 +4159,7 @@ Thank you for shopping with ${storeName}! 🙏`;
       ];
       rows = staff.map(st => {
         const riderOrders = orders.filter(o => o.assigned_staff_id === st.id);
-        const delivered = riderOrders.filter(o => o.order_status === 'Delivered');
+        const delivered = riderOrders.filter(isOrderDelivered);
         const onRoute = riderOrders.filter(o => o.order_status === 'Out for Delivery');
         const totalVal = delivered.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
         return [
@@ -4596,11 +4599,7 @@ Thank you for shopping with ${storeName}! 🙏`;
   // Automated Excel (.xlsx) Exporter for All Successfully Delivered Orders with Contact Details
   const handleDownloadDeliveredOrdersExcel = () => {
     try {
-      const deliveredList = (orders || []).filter(o => {
-        if (!o) return false;
-        const st = String(o.order_status || '').trim().toLowerCase();
-        return st === 'delivered' || st === 'completed';
-      });
+      const deliveredList = (orders || []).filter(isOrderDelivered);
 
       if (deliveredList.length === 0) {
         alert('No delivered orders found in system yet to export.');
@@ -4874,9 +4873,21 @@ Thank you for shopping with ${storeName}! 🙏`;
   };
 
   const filteredOrders = orders.filter(o => {
+    if (!o) return false;
+    if (orderSearchQuery && orderSearchQuery.trim()) {
+      const q = orderSearchQuery.trim().toLowerCase();
+      const match = String(o.id || '').toLowerCase().includes(q) ||
+                    String(o.customer_name || '').toLowerCase().includes(q) ||
+                    String(o.customer_phone || '').includes(q) ||
+                    String(o.address?.line1 || o.delivery_address || '').toLowerCase().includes(q) ||
+                    String(o.address?.phone || '').includes(q);
+      if (!match) return false;
+    }
     if (statusFilter === 'all') return true;
     if (statusFilter === 'manual') return o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin';
-    return o.order_status === statusFilter;
+    if (statusFilter === 'Delivered') return isOrderDelivered(o);
+    if (statusFilter === 'Cancelled') return isOrderCancelled(o);
+    return String(o.order_status || '').toLowerCase() === statusFilter.toLowerCase();
   });
 
   return (
@@ -5446,41 +5457,72 @@ Thank you for shopping with ${storeName}! 🙏`;
             </div>
 
             <div className="bg-white p-3 rounded-2xl border border-gray-200 flex flex-wrap items-center justify-between gap-3 shadow-sm">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                {['all', 'Placed', 'Accepted', 'Packing', 'Out for Delivery', 'Delivered', 'Cancelled'].map(st => (
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="relative min-w-[200px] sm:min-w-[240px]">
+                  <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={orderSearchQuery}
+                    onChange={(e) => setOrderSearchQuery(e.target.value)}
+                    placeholder="Search ID, phone, customer..."
+                    className="w-full pl-8 pr-7 py-1.5 text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
+                  />
+                  {orderSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setOrderSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                  {['all', 'Placed', 'Accepted', 'Packing', 'Out for Delivery', 'Delivered', 'Cancelled'].map(st => {
+                    const count = st === 'all'
+                      ? orders.length
+                      : st === 'Delivered'
+                      ? orders.filter(isOrderDelivered).length
+                      : st === 'Cancelled'
+                      ? orders.filter(isOrderCancelled).length
+                      : orders.filter(o => String(o?.order_status || '').toLowerCase() === st.toLowerCase()).length;
+                    return (
+                      <button
+                        key={st}
+                        onClick={() => setStatusFilter(st)}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                          statusFilter === st
+                            ? 'bg-gray-900 text-white shadow-sm'
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {st === 'all' ? 'All Orders' : st}
+                        {st !== 'all' && (
+                          <span className="ml-1.5 opacity-75 font-normal">
+                            ({count})
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+
                   <button
-                    key={st}
-                    onClick={() => setStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 ${
-                      statusFilter === st
-                        ? 'bg-gray-900 text-white shadow-sm'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    type="button"
+                    onClick={() => setStatusFilter('manual')}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
+                      statusFilter === 'manual'
+                        ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-500/30'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
                     }`}
                   >
-                    {st === 'all' ? 'All Orders' : st}
-                    {st !== 'all' && (
-                      <span className="ml-1.5 opacity-75 font-normal">
-                        ({orders.filter(o => o.order_status === st).length})
-                      </span>
-                    )}
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>Manual / WhatsApp</span>
+                    <span className="opacity-80 font-normal">
+                      ({orders.filter(o => o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin').length})
+                    </span>
                   </button>
-                ))}
-
-                <button
-                  type="button"
-                  onClick={() => setStatusFilter('manual')}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 cursor-pointer ${
-                    statusFilter === 'manual'
-                      ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-500/30'
-                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
-                  }`}
-                >
-                  <MessageSquare className="w-3.5 h-3.5" />
-                  <span>Manual / WhatsApp</span>
-                  <span className="opacity-80 font-normal">
-                    ({orders.filter(o => o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin').length})
-                  </span>
-                </button>
+                </div>
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
@@ -5493,10 +5535,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                   <FileSpreadsheet className="w-4 h-4 text-emerald-100" />
                   <span>📥 Download Delivered Orders (Excel)</span>
                   <span className="bg-emerald-900/60 text-white px-1.5 py-0.2 rounded-full text-[10px] font-black">
-                    {orders.filter(o => {
-                      const st = String(o?.order_status || '').toLowerCase();
-                      return st === 'delivered' || st === 'completed';
-                    }).length}
+                    {orders.filter(isOrderDelivered).length}
                   </span>
                 </button>
 
@@ -5522,7 +5561,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                     <h4 className="font-extrabold text-sm text-emerald-900 flex items-center gap-2">
                       <span>Delivered Orders Archive</span>
                       <span className="bg-emerald-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-                        {orders.filter(o => String(o?.order_status || '').toLowerCase() === 'delivered' || String(o?.order_status || '').toLowerCase() === 'completed').length} Orders
+                        {orders.filter(isOrderDelivered).length} Orders
                       </span>
                     </h4>
                     <p className="text-xs text-emerald-800 mt-0.5">
@@ -5853,9 +5892,9 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                             value={order.order_status}
                             onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value, order.assigned_staff_id)}
                             className={`text-xs font-black rounded-xl px-3 py-1.5 border transition-all focus:outline-none focus:ring-2 focus:ring-brand-500 shadow-sm ${
-                              order.order_status === 'Delivered'
+                              isOrderDelivered(order)
                                 ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                                : order.order_status === 'Cancelled'
+                                : isOrderCancelled(order)
                                 ? 'bg-rose-50 border-rose-300 text-rose-800'
                                 : order.order_status === 'Out for Delivery'
                                 ? 'bg-blue-50 border-blue-300 text-blue-800'
@@ -10083,7 +10122,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                                                     </td>
                                                     <td className="p-2">
                                                       <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                                        ord.order_status === 'Delivered'
+                                                        isOrderDelivered(ord)
                                                           ? 'bg-emerald-100 text-emerald-800'
                                                           : p.isCancelled
                                                           ? 'bg-rose-100 text-rose-800'
@@ -10205,7 +10244,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                                 </td>
                                 <td className="p-3">
                                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                    o.order_status === 'Delivered'
+                                    isOrderDelivered(o)
                                       ? 'bg-emerald-100 text-emerald-800'
                                       : pnl.isCancelled
                                       ? 'bg-rose-100 text-rose-800'
@@ -10591,7 +10630,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   {staff.map(st => {
                     const riderOrders = orders.filter(o => o.assigned_staff_id === st.id);
-                    const completed = riderOrders.filter(o => o.order_status === 'Delivered').length;
+                    const completed = riderOrders.filter(isOrderDelivered).length;
                     const inProgress = riderOrders.filter(o => o.order_status === 'Out for Delivery').length;
 
                     return (
@@ -10629,11 +10668,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
 
             {/* SUB-REPORT 6: DELIVERED ORDERS & CUSTOMER CONTACTS */}
             {reportModuleFilter === 'delivered_orders' && (() => {
-              const deliveredOrders = (orders || []).filter(o => {
-                if (!o) return false;
-                const st = String(o.order_status || '').toLowerCase();
-                return st === 'delivered' || st === 'completed';
-              });
+              const deliveredOrders = (orders || []).filter(isOrderDelivered);
               const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
               const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + (Number(o.delivery_fee) || 0), 0);
               const totalUnits = deliveredOrders.reduce((sum, o) => sum + (o.items || []).reduce((s, it) => s + (Number(it.qty) || 1), 0), 0);
@@ -11595,8 +11630,8 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
               {/* DELIVERY RIDERS CARDS */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {staff.map(st => {
-                  const assignedCount = orders.filter(o => o.assigned_staff_id === st.id && !['Delivered', 'Cancelled'].includes(o.order_status)).length;
-                  const deliveredCount = orders.filter(o => o.assigned_staff_id === st.id && o.order_status === 'Delivered').length;
+                  const assignedCount = orders.filter(o => o.assigned_staff_id === st.id && !isOrderDelivered(o) && !isOrderCancelled(o)).length;
+                  const deliveredCount = orders.filter(o => o.assigned_staff_id === st.id && isOrderDelivered(o)).length;
                   const isVerified = st.kyc_status === 'verified';
                   const isRejected = st.kyc_status === 'rejected';
                   const isPassVisible = !!showRiderPasswords[st.id];

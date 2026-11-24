@@ -393,6 +393,21 @@ export const DEFAULT_OTHER_INCOMES = [
 
 export const DEFAULT_PRODUCTS = UNIFIED_DEFAULT_PRODUCTS;
 
+// Universal Order Status Resolvers
+export const isOrderDelivered = (order) => {
+  if (!order) return false;
+  const os = String(order.order_status || '').trim().toLowerCase();
+  const st = String(order.status || '').trim().toLowerCase();
+  return os === 'delivered' || os === 'completed' || st === 'delivered' || st === 'completed';
+};
+
+export const isOrderCancelled = (order) => {
+  if (!order) return false;
+  const os = String(order.order_status || '').trim().toLowerCase();
+  const st = String(order.status || '').trim().toLowerCase();
+  return os === 'cancelled' || os === 'rejected' || st === 'cancelled' || st === 'rejected';
+};
+
 function normalizeFirebaseList(data) {
   if (!data) return null;
   if (Array.isArray(data)) return data.filter(Boolean);
@@ -726,6 +741,11 @@ export function StoreProvider({ children }) {
       return [];
     }
   });
+
+  const ordersRef = useRef(orders);
+  useEffect(() => {
+    ordersRef.current = orders;
+  }, [orders]);
 
   const [staff, setStaff] = useState(() => {
     try {
@@ -1229,6 +1249,40 @@ export function StoreProvider({ children }) {
     }
   }, [offers, appliedCoupon, cartSubtotal]);
 
+  // Targeted single order merger for real-time WebSocket events and inbox polls (never clobbers full order list)
+  const mergeSingleOrder = (incomingOrder) => {
+    if (!incomingOrder || !incomingOrder.id) return;
+    const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
+    setOrders(prevOrders => {
+      const currentList = Array.isArray(prevOrders) ? [...prevOrders] : [];
+      const idx = currentList.findIndex(o => o && o.id === incomingOrder.id);
+      let nextList;
+      if (idx === -1) {
+        nextList = [incomingOrder, ...currentList].sort(
+          (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+        );
+      } else {
+        const existing = currentList[idx];
+        const exRank = statusRank[existing.order_status] || 0;
+        const inRank = statusRank[incomingOrder.order_status] || 0;
+        const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
+        const inTime = new Date(incomingOrder.updated_at || incomingOrder.created_at || 0).getTime();
+
+        if (inRank > exRank || (inRank === exRank && inTime >= exTime)) {
+          currentList[idx] = { ...existing, ...incomingOrder };
+          nextList = [...currentList];
+        } else {
+          return prevOrders;
+        }
+      }
+      ordersRef.current = nextList;
+      try {
+        localStorage.setItem('gk_orders', JSON.stringify(nextList.slice(0, 100)));
+      } catch {}
+      return nextList;
+    });
+  };
+
   // Smart Order Merger: merges Supabase orders with local gk_orders by updated_at
   // and automatically heals Supabase store_kv if local orders were missing remotely
   const mergeAndSyncOrders = async (remoteOrdersRaw, isBackgroundPoll = false) => {
@@ -1253,14 +1307,18 @@ export function StoreProvider({ children }) {
 
     const rawRemote = normalizeFirebaseList(remoteOrdersRaw) || [];
     const remoteList = rawRemote.filter(isGenuineOrder);
-    let localList = [];
-    try {
-      const saved = localStorage.getItem('gk_orders');
-      const parsed = saved ? JSON.parse(saved) : [];
-      localList = Array.isArray(parsed) ? parsed.filter(isGenuineOrder) : [];
-    } catch {
-      localList = [];
-    }
+    // Prioritize in-memory ordersRef over localStorage to prevent quota truncation
+    const localList = (Array.isArray(ordersRef.current) && ordersRef.current.length > 0)
+      ? ordersRef.current.filter(isGenuineOrder)
+      : (() => {
+          try {
+            const saved = localStorage.getItem('gk_orders');
+            const parsed = saved ? JSON.parse(saved) : [];
+            return Array.isArray(parsed) ? parsed.filter(isGenuineOrder) : [];
+          } catch {
+            return [];
+          }
+        })();
 
     const orderMap = new Map();
     let needsRemoteHeal = false;
@@ -1326,12 +1384,14 @@ export function StoreProvider({ children }) {
     }
     knownOrderIdsRef.current = new Set(mergedOrders.map(o => o?.id).filter(Boolean));
 
+    ordersRef.current = mergedOrders;
     setOrders(mergedOrders);
     try {
-      localStorage.setItem('gk_orders', JSON.stringify(mergedOrders));
+      // Store top 100 in localStorage to prevent QuotaExceededError while keeping full 500+ orders in memory
+      localStorage.setItem('gk_orders', JSON.stringify(mergedOrders.slice(0, 100)));
     } catch {}
 
-    if (needsRemoteHeal && mergedOrders.length > 0) {
+    if (needsRemoteHeal && mergedOrders.length > 0 && remoteList.length > 0) {
       await syncToFirebase('orders', mergedOrders);
     }
   };
@@ -1410,7 +1470,7 @@ export function StoreProvider({ children }) {
             return true;
           });
           if (activeInbox.length > 0) {
-            await mergeAndSyncOrders(activeInbox, true);
+            activeInbox.forEach(io => mergeSingleOrder(io));
           }
         }
       }
@@ -1549,7 +1609,7 @@ export function StoreProvider({ children }) {
             mergeAndSyncOrders(data, true);
           } else if (key === 'orders_inbox' && Array.isArray(data)) {
             // Immediate real-time inbox notification (< 50ms)
-            mergeAndSyncOrders(data, true);
+            data.forEach(ord => mergeSingleOrder(ord));
             data.forEach(ord => {
               const isEligibleOrder = ord && ord.id && (ord.order_status === 'Placed' || !ord.order_status) && ord.order_status !== 'Cancelled' && ord.order_status !== 'Rejected';
               if (isEligibleOrder && !processedStockOrderIds.current.has(ord.id) && Array.isArray(ord.items) && ord.items.length > 0) {
@@ -1584,7 +1644,7 @@ export function StoreProvider({ children }) {
         (event, payload) => {
           // Direct Realtime WebSocket Broadcast (< 30ms latency)
           if ((event === 'NEW_ORDER' || event === 'ORDER_STATUS_CHANGED') && payload) {
-            mergeAndSyncOrders([payload], true);
+            mergeSingleOrder(payload);
             if (event === 'NEW_ORDER' && payload?.id && (payload.order_status === 'Placed' || !payload.order_status) && Array.isArray(payload.items) && payload.items.length > 0) {
               if (!processedStockOrderIds.current.has(payload.id)) {
                 processedStockOrderIds.current.add(payload.id);
@@ -3062,6 +3122,10 @@ export function StoreProvider({ children }) {
         // Inventory Stock Deductions & Restorations
         deductOrderStockFromProducts,
         restoreOrderStockToProducts,
+
+        // Order Status Resolvers
+        isOrderDelivered,
+        isOrderCancelled,
 
         // Expenses & Incomes (Accounting)
         expenses,
