@@ -408,6 +408,22 @@ export const isOrderCancelled = (order) => {
   return os === 'cancelled' || os === 'rejected' || st === 'cancelled' || st === 'rejected';
 };
 
+// Universal Order Status Hierarchy Rank Resolver
+export const getOrderStatusRank = (orderOrStatus) => {
+  if (!orderOrStatus) return 0;
+  const statusStr = typeof orderOrStatus === 'object'
+    ? (orderOrStatus.order_status || orderOrStatus.status || '')
+    : String(orderOrStatus);
+  const s = statusStr.trim().toLowerCase();
+  if (s === 'placed' || s === 'pending') return 1;
+  if (s === 'accepted' || s === 'confirmed') return 2;
+  if (s === 'packing' || s === 'processing') return 3;
+  if (s === 'out for delivery' || s === 'dispatched' || s === 'on the way') return 4;
+  if (s === 'delivered' || s === 'completed') return 5;
+  if (s === 'cancelled' || s === 'rejected') return 6;
+  return 0;
+};
+
 function normalizeFirebaseList(data) {
   if (!data) return null;
   if (Array.isArray(data)) return data.filter(Boolean);
@@ -1245,7 +1261,6 @@ export function StoreProvider({ children }) {
   // Targeted single order merger for real-time WebSocket events and inbox polls (never clobbers full order list)
   const mergeSingleOrder = (incomingOrder) => {
     if (!incomingOrder || !incomingOrder.id) return;
-    const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
     setOrders(prevOrders => {
       const currentList = Array.isArray(prevOrders) ? [...prevOrders] : [];
       const idx = currentList.findIndex(o => o && o.id === incomingOrder.id);
@@ -1256,8 +1271,8 @@ export function StoreProvider({ children }) {
         );
       } else {
         const existing = currentList[idx];
-        const exRank = statusRank[existing.order_status] || 0;
-        const inRank = statusRank[incomingOrder.order_status] || 0;
+        const exRank = getOrderStatusRank(existing);
+        const inRank = getOrderStatusRank(incomingOrder);
         const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
         const inTime = new Date(incomingOrder.updated_at || incomingOrder.created_at || 0).getTime();
 
@@ -1312,7 +1327,6 @@ export function StoreProvider({ children }) {
 
     // 2. Merge local orders: if a local order is missing on Supabase
     // or has a strictly newer updated_at timestamp, keep the newer one and heal
-    const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
     for (const lOrder of localList) {
       if (!lOrder || !lOrder.id) continue;
       const existingRemote = orderMap.get(lOrder.id);
@@ -1322,8 +1336,8 @@ export function StoreProvider({ children }) {
       } else {
         const rTime = new Date(existingRemote.updated_at || existingRemote.created_at || 0).getTime();
         const lTime = new Date(lOrder.updated_at || lOrder.created_at || 0).getTime();
-        const rRank = statusRank[existingRemote.order_status] || 0;
-        const lRank = statusRank[lOrder.order_status] || 0;
+        const rRank = getOrderStatusRank(existingRemote);
+        const lRank = getOrderStatusRank(lOrder);
 
         // Terminal/higher rank (e.g. Delivered or Cancelled) always takes precedence over lower rank (Placed, Out for Delivery)
         // If same rank, strictly newer timestamp takes precedence
@@ -1343,7 +1357,7 @@ export function StoreProvider({ children }) {
       (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
     );
 
-    // Play incoming order sound and fire mobile system notification in Admin terminal when a new order ID appears
+    // Play incoming order sound and fire mobile system notification in Admin terminal only for genuinely new placed orders
     const isAdminTerminal = typeof window !== 'undefined' && (
       window.location.pathname.includes('admin') ||
       window.location.href.includes('admin') ||
@@ -1351,7 +1365,12 @@ export function StoreProvider({ children }) {
     );
 
     if (isAdminTerminal && knownOrderIdsRef.current.size > 0) {
-      const newOrders = mergedOrders.filter(o => o?.id && !knownOrderIdsRef.current.has(o.id));
+      const newOrders = mergedOrders.filter(o => {
+        if (!o || !o.id) return false;
+        if (knownOrderIdsRef.current.has(o.id)) return false;
+        const st = String(o.order_status || o.status || '').toLowerCase();
+        return st === 'placed' || st === 'pending' || !st;
+      });
       if (newOrders.length > 0) {
         if (adminSoundEnabled) {
           playChime('new_order');
@@ -1378,7 +1397,6 @@ export function StoreProvider({ children }) {
 
   // Safe combiner for orders and orders_inbox: never allows lower-rank stale inbox status to downgrade higher-rank status
   const combineOrdersAndInbox = (sbOrders, sbInbox) => {
-    const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
     const map = new Map();
     if (Array.isArray(sbOrders)) {
       for (const ord of sbOrders) {
@@ -1392,8 +1410,8 @@ export function StoreProvider({ children }) {
         if (!existing) {
           map.set(inOrd.id, inOrd);
         } else {
-          const exRank = statusRank[existing.order_status] || 0;
-          const inRank = statusRank[inOrd.order_status] || 0;
+          const exRank = getOrderStatusRank(existing);
+          const inRank = getOrderStatusRank(inOrd);
           const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
           const inTime = new Date(inOrd.updated_at || inOrd.created_at || 0).getTime();
           // Inbox item only replaces if it has higher rank (e.g. Cancelled/Delivered), or same rank with strictly newer timestamp
@@ -1437,14 +1455,14 @@ export function StoreProvider({ children }) {
       } else {
         const sbInbox = await sbInboxPromise;
         if (!isRecentOrderWrite && Array.isArray(sbInbox) && sbInbox.length > 0) {
-          const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
           const activeInbox = sbInbox.filter(io => {
             if (!io || !io.id) return false;
-            if (['Delivered', 'Cancelled', 'Rejected'].includes(io.order_status)) return false;
-            const existing = orders.find(o => o && o.id === io.id);
+            const inStatus = String(io.order_status || io.status || '').toLowerCase();
+            if (['delivered', 'cancelled', 'rejected'].includes(inStatus)) return false;
+            const existing = (ordersRef.current || orders).find(o => o && o.id === io.id);
             if (existing) {
-              const exRank = statusRank[existing.order_status] || 0;
-              const inRank = statusRank[io.order_status] || 0;
+              const exRank = getOrderStatusRank(existing);
+              const inRank = getOrderStatusRank(io);
               if (exRank >= 5 && inRank < exRank) return false;
             }
             return true;

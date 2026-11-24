@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -1986,7 +1986,7 @@ Thank you for shopping with ${storeName}! 🙏`;
     window.__gkLastOrderWrite = Date.now();
     let updatedList = applyStatusUpdate(orders);
     setOrders(updatedList);
-    try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
+    try { localStorage.setItem('gk_orders', JSON.stringify(updatedList.slice(0, 100))); } catch {}
 
     // If order status changes to Cancelled or Rejected, restore product stock (+), auto-remove cashback, refund wallet and adjust customer profile stamps
     const wasCancelled = oldStatus === 'Cancelled' || oldStatus === 'Rejected';
@@ -2106,7 +2106,6 @@ Thank you for shopping with ${storeName}! 🙏`;
         fetchNodeFromSupabase('orders_inbox')
       ]);
 
-      const statusRank = { 'Placed': 1, 'Accepted': 2, 'Packing': 3, 'Out for Delivery': 4, 'Delivered': 5, 'Cancelled': 6, 'Rejected': 6 };
       const combinedMap = new Map();
       if (Array.isArray(remoteList)) {
         for (const ro of remoteList) {
@@ -2120,8 +2119,8 @@ Thank you for shopping with ${storeName}! 🙏`;
           if (!existing) {
             combinedMap.set(io.id, io);
           } else {
-            const exRank = statusRank[existing.order_status] || 0;
-            const inRank = statusRank[io.order_status] || 0;
+            const exRank = getOrderStatusRank(existing);
+            const inRank = getOrderStatusRank(io);
             const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
             const inTime = new Date(io.updated_at || io.created_at || 0).getTime();
             if (inRank > exRank || (inRank === exRank && inTime > exTime)) {
@@ -2139,8 +2138,8 @@ Thank you for shopping with ${storeName}! 🙏`;
           if (String(lo.id) === String(orderId)) {
             combinedMap.set(lo.id, lo);
           } else {
-            const exRank = statusRank[existing.order_status] || 0;
-            const loRank = statusRank[lo.order_status] || 0;
+            const exRank = getOrderStatusRank(existing);
+            const loRank = getOrderStatusRank(lo);
             const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
             const loTime = new Date(lo.updated_at || lo.created_at || 0).getTime();
             if (loRank > exRank || (loRank === exRank && loTime > exTime)) {
@@ -2152,7 +2151,7 @@ Thank you for shopping with ${storeName}! 🙏`;
       updatedList = Array.from(combinedMap.values());
       updatedList.sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
       setOrders(updatedList);
-      try { localStorage.setItem('gk_orders', JSON.stringify(updatedList)); } catch {}
+      try { localStorage.setItem('gk_orders', JSON.stringify(updatedList.slice(0, 100))); } catch {}
     } catch {}
 
     window.__gkLastOrderWrite = Date.now();

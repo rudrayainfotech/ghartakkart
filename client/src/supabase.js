@@ -24,7 +24,25 @@ export const supabase = isSupabaseConfigured
  */
 export async function directRestUpsert(key, data) {
   try {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/store_kv?on_conflict=key`, {
+    const nowIso = new Date().toISOString();
+    // 1. Try PATCH first (direct update on existing store_kv row)
+    const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/store_kv?key=eq.${encodeURIComponent(key)}`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({
+        data: data,
+        updated_at: nowIso
+      })
+    });
+    if (patchRes.ok) return true;
+
+    // 2. Fallback to POST insert if key doesn't exist yet
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/store_kv`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -35,7 +53,7 @@ export async function directRestUpsert(key, data) {
       body: JSON.stringify({
         key: String(key),
         data: data,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso
       })
     });
     return res.ok;
@@ -64,18 +82,29 @@ export async function directRestFetch(key) {
 
 export async function syncNodeToSupabase(key, data) {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) return false;
+  const nowIso = new Date().toISOString();
   try {
     if (supabase) {
-      const { error } = await supabase
+      const { error, count } = await supabase
+        .from('store_kv')
+        .update({
+          data: data,
+          updated_at: nowIso
+        })
+        .eq('key', String(key));
+
+      if (!error && count !== 0) return true;
+
+      const { error: upsertErr } = await supabase
         .from('store_kv')
         .upsert({
           key: String(key),
           data: data,
-          updated_at: new Date().toISOString()
+          updated_at: nowIso
         }, { onConflict: 'key' });
 
-      if (!error) return true;
-      console.warn(`[Supabase Sync] Warning writing to ${key}:`, error.message);
+      if (!upsertErr) return true;
+      console.warn(`[Supabase Sync] Warning writing to ${key}:`, upsertErr.message);
     }
   } catch (err) {
     console.warn(`[Supabase Sync] Error writing to ${key}:`, err);
