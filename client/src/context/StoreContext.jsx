@@ -408,6 +408,31 @@ export const isOrderCancelled = (order) => {
   return os === 'cancelled' || os === 'rejected' || st === 'cancelled' || st === 'rejected';
 };
 
+export const isOrderToday = (order) => {
+  if (!order) return false;
+  const now = new Date();
+  const yr = now.getFullYear();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const da = String(now.getDate()).padStart(2, '0');
+  const todayKey = `${yr}-${mo}-${da}`;
+
+  const checkDateKey = (isoStr) => {
+    if (!isoStr) return '';
+    try {
+      const d = new Date(isoStr);
+      if (isNaN(d.getTime())) return '';
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    } catch {
+      return '';
+    }
+  };
+
+  const createdKey = checkDateKey(order.created_at);
+  const updatedKey = checkDateKey(order.updated_at);
+  const deliveryKey = checkDateKey(order.delivery_time);
+  return createdKey === todayKey || updatedKey === todayKey || deliveryKey === todayKey;
+};
+
 // Universal Order Status Normalizer
 export const normalizeOrderStatus = (raw) => {
   if (!raw) return 'Placed';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank, normalizeOrderStatus, matchesOrderSearch } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, isOrderToday, getOrderStatusRank, normalizeOrderStatus, matchesOrderSearch } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -919,6 +919,11 @@ Thank you for shopping with ${storeName}! 🙏`;
   const activeOrders = orders.filter(o => !isOrderDelivered(o) && !isOrderCancelled(o));
   const deliveredOrders = orders.filter(isOrderDelivered);
   const totalRevenue = orders
+    .filter(o => !isOrderCancelled(o))
+    .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+  const todayOrdersList = orders.filter(isOrderToday);
+  const todayDeliveredOrders = todayOrdersList.filter(isOrderDelivered);
+  const todayRevenue = todayOrdersList
     .filter(o => !isOrderCancelled(o))
     .reduce((sum, o) => sum + (Number(o.total) || 0), 0);
   const lowStockProducts = products.filter(p => p.stock <= 15);
@@ -4836,6 +4841,7 @@ Thank you for shopping with ${storeName}! 🙏`;
         if (hasSearch) {
           return matchesOrderSearch(o, orderSearchQuery);
         }
+        if (statusFilter === 'today') return isOrderToday(o);
         if (statusFilter === 'all') return true;
         if (statusFilter === 'manual') return o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin';
         if (statusFilter === 'Delivered') return isOrderDelivered(o);
@@ -5270,9 +5276,9 @@ Thank you for shopping with ${storeName}! 🙏`;
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Today's Revenue</span>
-                <span className="text-2xl font-black text-gray-900 mt-1 block">₹{totalRevenue}</span>
-                <span className="text-[11px] text-emerald-600 font-semibold mt-1 flex items-center gap-1">
-                  <CheckCircle2 className="w-3 h-3" /> Live Gross Volume
+                <span className="text-2xl font-black text-emerald-700 mt-1 block">₹{todayRevenue.toLocaleString('en-IN')}</span>
+                <span className="text-[11px] text-gray-500 font-semibold mt-1 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-600" /> ₹{totalRevenue.toLocaleString('en-IN')} All-time Total
                 </span>
               </div>
 
@@ -5284,8 +5290,8 @@ Thank you for shopping with ${storeName}! 🙏`;
 
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider block">Completed Deliveries</span>
-                <span className="text-2xl font-black text-emerald-600 mt-1 block">{deliveredOrders.length}</span>
-                <span className="text-[11px] text-gray-500 mt-1 block">Delivered successfully</span>
+                <span className="text-2xl font-black text-emerald-600 mt-1 block">{todayDeliveredOrders.length}</span>
+                <span className="text-[11px] text-gray-500 mt-1 block">{deliveredOrders.length} All-time Delivered</span>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm">
@@ -5444,30 +5450,31 @@ Thank you for shopping with ${storeName}! 🙏`;
                 </div>
 
                 <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
-                  {['all', 'Placed', 'Accepted', 'Packing', 'Out for Delivery', 'Delivered', 'Cancelled'].map(st => {
-                    const count = st === 'all'
+                  {['today', 'all', 'Placed', 'Accepted', 'Packing', 'Out for Delivery', 'Delivered', 'Cancelled'].map(st => {
+                    const count = st === 'today'
+                      ? orders.filter(isOrderToday).length
+                      : st === 'all'
                       ? orders.length
                       : st === 'Delivered'
                       ? orders.filter(isOrderDelivered).length
                       : st === 'Cancelled'
                       ? orders.filter(isOrderCancelled).length
-                      : orders.filter(o => String(o?.order_status || '').toLowerCase() === st.toLowerCase()).length;
+                      : orders.filter(o => normalizeOrderStatus(o?.order_status || o?.status).toLowerCase() === st.toLowerCase()).length;
+                    const isTodayBtn = st === 'today';
                     return (
                       <button
                         key={st}
                         onClick={() => setStatusFilter(st)}
                         className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
                           statusFilter === st
-                            ? 'bg-gray-900 text-white shadow-sm'
-                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                            ? (isTodayBtn ? 'bg-emerald-700 text-white shadow-sm ring-2 ring-emerald-500/30' : 'bg-gray-900 text-white shadow-sm')
+                            : (isTodayBtn ? 'bg-emerald-50 text-emerald-800 border border-emerald-300 hover:bg-emerald-100 font-extrabold' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')
                         }`}
                       >
-                        {st === 'all' ? 'All Orders' : st}
-                        {st !== 'all' && (
-                          <span className="ml-1.5 opacity-75 font-normal">
-                            ({count})
-                          </span>
-                        )}
+                        {st === 'today' ? "📅 Today's Orders" : st === 'all' ? 'All Orders' : st}
+                        <span className="ml-1.5 opacity-75 font-normal">
+                          ({count})
+                        </span>
                       </button>
                     );
                   })}
@@ -10181,7 +10188,11 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {orders.slice(0, 25).map(o => {
+                          {orders
+                            .slice()
+                            .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0))
+                            .slice(0, 100)
+                            .map(o => {
                             const pnl = getOrderPnlBreakdown(o);
                             return (
                               <tr key={o.id} className="hover:bg-gray-50">
