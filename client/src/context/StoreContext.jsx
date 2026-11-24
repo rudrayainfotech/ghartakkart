@@ -993,6 +993,7 @@ export function StoreProvider({ children }) {
         if (Array.isArray(parsed)) {
           parsed.forEach(o => {
             if (o && o.id) {
+              knownOrderIdsRef.current.add(o.id);
               processedStockOrderIds.current.add(o.id);
               if (o.order_status === 'Cancelled' || o.order_status === 'Rejected') {
                 processedStockOrderIds.current.add(`${o.id}_cancelled`);
@@ -1356,10 +1357,18 @@ export function StoreProvider({ children }) {
         );
       } else {
         const existing = currentList[idx];
+        const exRank = getOrderStatusRank(existing);
+        const inRank = getOrderStatusRank(incomingOrder);
+
+        // Status rank preservation: a higher-rank status (e.g. Delivered=5 or Cancelled=6) must NEVER be reverted by an incoming poll of lower rank
+        if (exRank > inRank && inRank > 0) {
+          return prevOrders;
+        }
+
         const exTime = new Date(existing.updated_at || existing.created_at || 0).getTime();
         const inTime = new Date(incomingOrder.updated_at || incomingOrder.created_at || 0).getTime();
 
-        if (inTime >= exTime) {
+        if (inRank > exRank || inTime >= exTime) {
           currentList[idx] = { ...existing, ...incomingOrder };
           nextList = [...currentList];
         } else {
@@ -1414,11 +1423,14 @@ export function StoreProvider({ children }) {
       if (!existingRemote) {
         orderMap.set(lOrder.id, lOrder);
       } else {
-        const isRecent = window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.has(lOrder.id) && (Date.now() - window.__gkRecentlyUpdatedOrders.get(lOrder.id).time < 15000);
+        const isRecent = window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.has(lOrder.id) && (Date.now() - window.__gkRecentlyUpdatedOrders.get(lOrder.id).time < 60000);
+        const rRank = getOrderStatusRank(existingRemote);
+        const lRank = getOrderStatusRank(lOrder);
         const rTime = new Date(existingRemote.updated_at || existingRemote.created_at || 0).getTime();
         const lTime = new Date(lOrder.updated_at || lOrder.created_at || 0).getTime();
 
-        if (isRecent || lTime > rTime) {
+        // Status rank preservation: local higher-rank or recently updated locally takes precedence
+        if (isRecent || lRank > rRank || (lRank === rRank && lTime > rTime)) {
           orderMap.set(lOrder.id, { ...existingRemote, ...lOrder });
         }
       }

@@ -614,6 +614,7 @@ Thank you for shopping with ${storeName}! 🙏`;
   const [pnlStartDate, setPnlStartDate] = useState('');
   const [pnlEndDate, setPnlEndDate] = useState('');
   const [selectedPnlDay, setSelectedPnlDay] = useState(null);
+  const [deliveredSearchQuery, setDeliveredSearchQuery] = useState('');
 
   // Stamp Customers Module State
   const [stampCustomerSearch, setStampCustomerSearch] = useState('');
@@ -4826,17 +4827,33 @@ Thank you for shopping with ${storeName}! 🙏`;
     handleExportExcel('sales');
   };
 
-  const filteredOrders = orders.filter(o => {
-    if (!o) return false;
-    if (orderSearchQuery && orderSearchQuery.trim()) {
-      if (!matchesOrderSearch(o, orderSearchQuery)) return false;
-    }
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'manual') return o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin';
-    if (statusFilter === 'Delivered') return isOrderDelivered(o);
-    if (statusFilter === 'Cancelled') return isOrderCancelled(o);
-    return String(o.order_status || '').toLowerCase() === statusFilter.toLowerCase();
-  });
+  const filteredOrders = React.useMemo(() => {
+    const hasSearch = Boolean(orderSearchQuery && orderSearchQuery.trim());
+    return (orders || [])
+      .filter(o => {
+        if (!o) return false;
+        // When searching, match across ALL orders regardless of status filter tab
+        if (hasSearch) {
+          return matchesOrderSearch(o, orderSearchQuery);
+        }
+        if (statusFilter === 'all') return true;
+        if (statusFilter === 'manual') return o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin';
+        if (statusFilter === 'Delivered') return isOrderDelivered(o);
+        if (statusFilter === 'Cancelled') return isOrderCancelled(o);
+        const st = normalizeOrderStatus(o.order_status || o.status);
+        return st.toLowerCase() === statusFilter.toLowerCase();
+      })
+      .sort((a, b) => {
+        if (statusFilter === 'Delivered') {
+          const timeA = new Date(a.delivery_time || a.updated_at || a.created_at || 0).getTime();
+          const timeB = new Date(b.delivery_time || b.updated_at || b.created_at || 0).getTime();
+          return timeB - timeA;
+        }
+        const timeA = new Date(a.created_at || a.updated_at || 0).getTime();
+        const timeB = new Date(b.created_at || b.updated_at || 0).getTime();
+        return timeB - timeA;
+      });
+  }, [orders, orderSearchQuery, statusFilter]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 flex flex-col lg:flex-row antialiased font-sans selection:bg-amber-100 selection:text-amber-900">
@@ -10622,10 +10639,19 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
 
             {/* SUB-REPORT 6: DELIVERED ORDERS & CUSTOMER CONTACTS */}
             {reportModuleFilter === 'delivered_orders' && (() => {
-              const deliveredOrders = (orders || []).filter(isOrderDelivered);
-              const totalRevenue = deliveredOrders.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
-              const totalDeliveryFees = deliveredOrders.reduce((sum, o) => sum + (Number(o.delivery_fee) || 0), 0);
-              const totalUnits = deliveredOrders.reduce((sum, o) => sum + (o.items || []).reduce((s, it) => s + (Number(it.qty) || 1), 0), 0);
+              const allDelivered = (orders || [])
+                .filter(isOrderDelivered)
+                .sort((a, b) => {
+                  const timeA = new Date(a.delivery_time || a.updated_at || a.created_at || 0).getTime();
+                  const timeB = new Date(b.delivery_time || b.updated_at || b.created_at || 0).getTime();
+                  return timeB - timeA;
+                });
+              const deliveredOrders = deliveredSearchQuery && deliveredSearchQuery.trim()
+                ? allDelivered.filter(o => matchesOrderSearch(o, deliveredSearchQuery))
+                : allDelivered;
+              const totalRevenue = allDelivered.reduce((sum, o) => sum + (Number(o.total) || 0), 0);
+              const totalDeliveryFees = allDelivered.reduce((sum, o) => sum + (Number(o.delivery_fee) || 0), 0);
+              const totalUnits = allDelivered.reduce((sum, o) => sum + (o.items || []).reduce((s, it) => s + (Number(it.qty) || 1), 0), 0);
 
               return (
                 <div className="space-y-4">
@@ -10634,7 +10660,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                       <h4 className="font-extrabold text-xs uppercase tracking-wider text-gray-900 flex items-center gap-2">
                         <span>Delivered Orders & Customer Contacts Ledger</span>
                         <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-full">
-                          {deliveredOrders.length} Orders
+                          {allDelivered.length} Orders
                         </span>
                       </h4>
                       <p className="text-[11px] text-gray-500 mt-0.5">
@@ -10666,7 +10692,7 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">
                       <span className="text-[10px] font-bold uppercase text-gray-400">Total Delivered</span>
-                      <span className="text-xl font-black text-gray-900 block mt-1">{deliveredOrders.length}</span>
+                      <span className="text-xl font-black text-gray-900 block mt-1">{allDelivered.length}</span>
                       <span className="text-[10px] text-emerald-600 font-semibold mt-0.5 block">100% Completed</span>
                     </div>
                     <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs">
@@ -10684,6 +10710,32 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                       <span className="text-xl font-black text-amber-700 block mt-1">{totalUnits}</span>
                       <span className="text-[10px] text-gray-400 font-medium mt-0.5 block">Packaged goods</span>
                     </div>
+                  </div>
+
+                  {/* Delivered Orders Search Bar */}
+                  <div className="bg-white p-3 rounded-2xl border border-gray-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                    <div className="relative flex-1 max-w-md">
+                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={deliveredSearchQuery}
+                        onChange={(e) => setDeliveredSearchQuery(e.target.value)}
+                        placeholder="Search delivered orders by customer, phone, order ID, address..."
+                        className="w-full pl-8 pr-7 py-2 text-xs bg-gray-50 hover:bg-white focus:bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-medium"
+                      />
+                      {deliveredSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setDeliveredSearchQuery('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs font-bold cursor-pointer"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-gray-500">
+                      Showing {deliveredOrders.length} of {allDelivered.length} delivered orders
+                    </span>
                   </div>
 
                   {/* Orders Table */}
@@ -10707,11 +10759,11 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                           {deliveredOrders.length === 0 ? (
                             <tr>
                               <td colSpan="9" className="p-8 text-center text-gray-400 font-bold">
-                                No successfully delivered orders found yet.
+                                No successfully delivered orders found matching your search.
                               </td>
                             </tr>
                           ) : (
-                            deliveredOrders.slice(0, 50).map(o => {
+                            deliveredOrders.slice(0, deliveredSearchQuery ? 500 : 100).map(o => {
                               const cleanPhone = String(o.customer_phone || o.address?.phone || '').replace(/\D/g, '').slice(-10);
                               return (
                                 <tr key={o.id} className="hover:bg-gray-50/80 transition-colors">

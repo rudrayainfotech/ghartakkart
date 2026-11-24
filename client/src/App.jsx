@@ -161,11 +161,11 @@ export default function App() {
       }
     }
 
-    // Do not show old Delivered orders on homepage load unless delivered within the last 60 mins
+    // Do not show old Delivered orders on homepage load unless delivered within the last 24 hours
     if (candidate.order_status === 'Delivered') {
       const updatedTime = new Date(candidate.updated_at || candidate.created_at || 0).getTime();
       const minsSinceUpdate = (Date.now() - updatedTime) / (1000 * 60);
-      if (minsSinceUpdate > 60) {
+      if (minsSinceUpdate > 24 * 60) {
         return null;
       }
     }
