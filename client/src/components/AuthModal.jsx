@@ -63,17 +63,22 @@ export default function AuthModal() {
   const liveActiveStamps = customerStampStatus?.activeStamps ?? (customerUser?.stamps || 0);
   const liveSurpriseGifts = customerStampStatus?.surpriseGifts ?? (customerUser?.surpriseGifts || 0);
 
-  // Filter orders belonging to this customer phone or last placed order ID
+  // Filter orders belonging to this customer phone or last placed order ID, sorted newest-first
   const lastPhone = typeof window !== 'undefined' ? (localStorage.getItem('gk_last_customer_phone') || '') : '';
   const lastOrderId = typeof window !== 'undefined' ? localStorage.getItem('gk_last_customer_order_id') : null;
-  const customerOrders = orders.filter(o => {
-    if (lastOrderId && o.id === lastOrderId) return true;
-    const orderPhone = o.customer_phone?.replace(/\D/g, '').slice(-10);
-    const userPhone = (customerUser?.phone || lastPhone || '').replace(/\D/g, '').slice(-10);
-    return orderPhone && userPhone && orderPhone === userPhone;
-  });
+  const customerOrders = React.useMemo(() => {
+    return (orders || [])
+      .filter(o => {
+        if (!o) return false;
+        if (lastOrderId && o.id === lastOrderId) return true;
+        const orderPhone = String(o.customer_phone || o.address?.phone || '').replace(/\D/g, '').slice(-10);
+        const userPhone = String(customerUser?.phone || lastPhone || '').replace(/\D/g, '').slice(-10);
+        return orderPhone && userPhone && orderPhone === userPhone;
+      })
+      .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0));
+  }, [orders, lastOrderId, customerUser?.phone, lastPhone]);
 
-  // Jab Google 1-Click + Phone Number complete ho jayega tab yeh call hoga
+  // Invoked when user completes login authentication
   const handleLoginSuccess = (userData) => {
     const updatedName = userData.name || customerUser?.name || 'Customer';
     const updatedEmail = userData.email || customerUser?.email || '';

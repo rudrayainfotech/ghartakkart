@@ -437,6 +437,69 @@ export const getOrderStatusRank = (orderOrStatus) => {
   return 0;
 };
 
+// Universal Order Search Matcher (supports tokenized, substring, prefix, and typo-tolerant phonetic matching)
+export const matchesOrderSearch = (order, query) => {
+  if (!query || !query.trim()) return true;
+  if (!order) return false;
+
+  const rawQuery = query.trim().toLowerCase();
+  const tokens = rawQuery.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+
+  const searchableFields = [
+    order.id,
+    order.customer_name,
+    order.customer_phone,
+    order.address?.line1,
+    order.address?.landmark,
+    order.address?.city,
+    order.address?.pincode,
+    order.address?.phone,
+    order.delivery_address,
+    order.assigned_staff_name,
+    order.notes,
+    order.instructions,
+    ...(Array.isArray(order.items) ? order.items.map(it => it?.name || it?.title) : [])
+  ].map(s => String(s || '').trim().toLowerCase()).filter(Boolean);
+
+  const fullText = searchableFields.join(' ');
+  // Fast path: if entire query is present as a substring, return true immediately
+  if (fullText.includes(rawQuery)) return true;
+
+  // Consonant skeleton (strip vowels & non-alphanumeric) to match phonetic variations like Attari / Attri
+  const getSkeleton = (str) => str.replace(/[^a-z0-9]/g, '').replace(/[aeiou]/g, '');
+
+  return tokens.every(tok => {
+    // 1. Direct substring match
+    if (fullText.includes(tok)) return true;
+
+    // 2. Prefix match (e.g. "att" matches "attri")
+    if (tok.length >= 3) {
+      const prefix = tok.slice(0, 3);
+      if (searchableFields.some(txt => txt.split(/\s+/).some(w => w.startsWith(prefix)))) {
+        return true;
+      }
+    }
+
+    // 3. Consonant skeleton match for names/words with length >= 4 (e.g. "attari" -> "ttr" matches "attri" -> "ttr")
+    if (tok.length >= 4) {
+      const tokSkel = getSkeleton(tok);
+      if (tokSkel.length >= 3) {
+        if (searchableFields.some(txt => {
+          return txt.split(/\s+/).some(w => {
+            const wSkel = getSkeleton(w);
+            return wSkel.length >= 3 && (wSkel.includes(tokSkel) || tokSkel.includes(wSkel));
+          });
+        })) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  });
+};
+
 function normalizeFirebaseList(data) {
   if (!data) return null;
   if (Array.isArray(data)) return data.filter(Boolean);

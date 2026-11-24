@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank, normalizeOrderStatus } from '../context/StoreContext.jsx';
+import { useStore, syncToFirebase, DEFAULT_MILESTONE_GIFTS, DEFAULT_OFFERS, deductOrderStockFromProducts, restoreOrderStockToProducts, isOrderDelivered, isOrderCancelled, getOrderStatusRank, normalizeOrderStatus, matchesOrderSearch } from '../context/StoreContext.jsx';
 import { fetchNodeFromSupabase, syncNodeToSupabase, broadcastStoreEvent } from '../supabase.js';
 import { playChime } from '../utils/sound.js';
 import {
@@ -4829,13 +4829,7 @@ Thank you for shopping with ${storeName}! 🙏`;
   const filteredOrders = orders.filter(o => {
     if (!o) return false;
     if (orderSearchQuery && orderSearchQuery.trim()) {
-      const q = orderSearchQuery.trim().toLowerCase();
-      const match = String(o.id || '').toLowerCase().includes(q) ||
-                    String(o.customer_name || '').toLowerCase().includes(q) ||
-                    String(o.customer_phone || '').includes(q) ||
-                    String(o.address?.line1 || o.delivery_address || '').toLowerCase().includes(q) ||
-                    String(o.address?.phone || '').includes(q);
-      if (!match) return false;
+      if (!matchesOrderSearch(o, orderSearchQuery)) return false;
     }
     if (statusFilter === 'all') return true;
     if (statusFilter === 'manual') return o.source === 'manual' || o.source === 'whatsapp' || o.source === 'phone' || o.source === 'walkin';

@@ -135,13 +135,18 @@ export default function App() {
       candidate = orders.find(o => o?.id === lastPlacedOrderId) || null;
     }
 
-    if (!candidate && customerUser?.isLoggedIn && customerPhoneClean) {
-      const byPhone = orders.filter(o => {
-        const oPhone = (o?.customer_phone || '').replace(/\D/g, '').slice(-10);
-        if (!oPhone || oPhone !== customerPhoneClean) return false;
-        const ageHours = (Date.now() - new Date(o.created_at || 0).getTime()) / (1000 * 60 * 60);
-        return ageHours <= 12;
-      });
+    const effectivePhone = customerPhoneClean || (typeof window !== 'undefined' ? (localStorage.getItem('gk_last_customer_phone') || '').replace(/\D/g, '').slice(-10) : '');
+
+    if (!candidate && effectivePhone) {
+      const byPhone = orders
+        .filter(o => {
+          const oPhone = (o?.customer_phone || o?.address?.phone || '').replace(/\D/g, '').slice(-10);
+          if (!oPhone || oPhone !== effectivePhone) return false;
+          const ageHours = (Date.now() - new Date(o.created_at || 0).getTime()) / (1000 * 60 * 60);
+          return ageHours <= 24;
+        })
+        .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0));
+
       if (byPhone.length > 0) candidate = byPhone[0];
     }
 
@@ -156,12 +161,20 @@ export default function App() {
       }
     }
 
+    // Do not show old Delivered orders on homepage load unless delivered within the last 60 mins
+    if (candidate.order_status === 'Delivered') {
+      const updatedTime = new Date(candidate.updated_at || candidate.created_at || 0).getTime();
+      const minsSinceUpdate = (Date.now() - updatedTime) / (1000 * 60);
+      if (minsSinceUpdate > 60) {
+        return null;
+      }
+    }
+
     return candidate;
   }, [orders, customerUser?.isLoggedIn, customerPhoneClean, activeTrackingOrderId, lastPlacedOrderId]);
 
   const showLiveOrderBanner =
     latestCustomerOrder &&
-    latestCustomerOrder.order_status !== 'Delivered' &&
     !dismissedBanners[`${latestCustomerOrder.id}-${latestCustomerOrder.order_status}`] &&
     dismissedBanners[latestCustomerOrder.id] !== latestCustomerOrder.order_status;
 
@@ -412,12 +425,15 @@ export default function App() {
           {/* Real-Time Customer Order Status & Cancellation Alert Banner */}
           {showLiveOrderBanner && (() => {
             const isCancelled = latestCustomerOrder.order_status === 'Cancelled' || latestCustomerOrder.order_status === 'Rejected';
+            const isDelivered = latestCustomerOrder.order_status === 'Delivered';
             return (
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-3">
                 <div
                   className={`rounded-2xl p-3 sm:p-4 border-2 shadow-md flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-all ${
                     isCancelled
                       ? 'bg-rose-50 border-rose-300 text-rose-950'
+                      : isDelivered
+                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
                       : 'bg-white border-brand-300 text-gray-900'
                   }`}
                 >
@@ -426,10 +442,12 @@ export default function App() {
                       className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-bold ${
                         isCancelled
                           ? 'bg-rose-600 text-white animate-pulse'
+                          : isDelivered
+                          ? 'bg-emerald-600 text-white'
                           : 'bg-brand-600 text-white'
                       }`}
                     >
-                      {isCancelled ? <AlertTriangle className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
+                      {isCancelled ? <AlertTriangle className="w-5 h-5" /> : isDelivered ? <CheckCircle2 className="w-5 h-5" /> : <Clock className="w-5 h-5" />}
                     </div>
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
@@ -440,15 +458,19 @@ export default function App() {
                           className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full ${
                             isCancelled
                               ? 'bg-rose-600 text-white'
+                              : isDelivered
+                              ? 'bg-emerald-600 text-white'
                               : 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                           }`}
                         >
-                          {isCancelled ? '❌ Cancelled by Store' : `Live Status: ${latestCustomerOrder.order_status}`}
+                          {isCancelled ? '❌ Cancelled by Store' : isDelivered ? '✅ Order Delivered' : `Live Status: ${latestCustomerOrder.order_status}`}
                         </span>
                       </div>
-                      <p className={`text-xs mt-0.5 font-medium ${isCancelled ? 'text-rose-800 font-bold' : 'text-gray-600'}`}>
+                      <p className={`text-xs mt-0.5 font-medium ${isCancelled ? 'text-rose-800 font-bold' : isDelivered ? 'text-emerald-900 font-semibold' : 'text-gray-600'}`}>
                         {isCancelled
                           ? (latestCustomerOrder.admin_remark || latestCustomerOrder.cancel_reason || 'Your order was cancelled by the store.')
+                          : isDelivered
+                          ? (latestCustomerOrder.admin_remark ? `Store Update: ${latestCustomerOrder.admin_remark}` : `Delivered to your address • ₹${latestCustomerOrder.total} • ${(latestCustomerOrder.items || []).length} items`)
                           : (latestCustomerOrder.admin_remark
                               ? `Store Update: ${latestCustomerOrder.admin_remark}`
                               : `Total: ₹${latestCustomerOrder.total} • ${(latestCustomerOrder.items || []).length} items`)}
@@ -463,10 +485,12 @@ export default function App() {
                       className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer ${
                         isCancelled
                           ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                          : isDelivered
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                           : 'bg-brand-600 hover:bg-brand-700 text-white'
                       }`}
                     >
-                      {isCancelled ? 'View Order Status' : 'Track Live Order'}
+                      {isCancelled ? 'View Order Status' : isDelivered ? 'View Receipt & Details' : 'Track Live Order'}
                     </button>
                     <button
                       type="button"
