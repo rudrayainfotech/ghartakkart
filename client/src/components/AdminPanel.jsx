@@ -167,12 +167,12 @@ export default function AdminPanel() {
   const STAFF_PERMISSION_OPTIONS = [
     { id: 'orders', label: 'Order Dispatch & Processing', group: 'OPERATIONS' },
     { id: 'overview', label: 'Dashboard Stats', group: 'OPERATIONS' },
+    { id: 'reports', label: 'Reports & Charts 📊', group: 'OPERATIONS' },
     { id: 'products', label: 'Products & Stock', group: 'OPERATIONS' },
     { id: 'categories', label: 'Categories & Mapping', group: 'OPERATIONS' },
     { id: 'vendors', label: 'Vendors & Ledger', group: 'FINANCE & SUPPLY' },
     { id: 'vendor-sheet', label: 'Material & Payment Sheet', group: 'FINANCE & SUPPLY' },
     { id: 'accounting', label: 'Expenses & P&L', group: 'FINANCE & SUPPLY' },
-    { id: 'reports', label: 'Reports & Charts 📊', group: 'FINANCE & SUPPLY' },
     { id: 'offers', label: 'Offer Zone & Gifts', group: 'GROWTH & REWARDS' },
     { id: 'stamps', label: 'Customers & Wallet', group: 'GROWTH & REWARDS' },
     { id: 'radius-settings', label: 'Delivery Radius & Settings', group: 'STORE & FLEET' },
@@ -5358,6 +5358,7 @@ Thank you for shopping with ${storeName}! 🙏`;
               items: [
                 { id: 'overview', label: 'Dashboard Stats', icon: TrendingUp },
                 { id: 'orders', label: 'Order Dispatch', icon: Package, badge: activeOrders.length, badgeColor: 'bg-emerald-600 text-white animate-pulse' },
+                { id: 'reports', label: 'Reports & Charts 📊', icon: BarChart3, badge: 'Hub Bestsellers', badgeColor: 'bg-amber-100 text-amber-900 border border-amber-300 font-extrabold' },
                 { id: 'products', label: 'Products & Stock', icon: Layers, badge: lowStockProducts.length ? `⚠️ ${lowStockProducts.length}` : null, badgeColor: 'bg-amber-500 text-white' },
                 { id: 'categories', label: 'Categories & Mapping', icon: Sparkles }
               ]
@@ -5367,8 +5368,7 @@ Thank you for shopping with ${storeName}! 🙏`;
               items: [
                 { id: 'vendors', label: 'Vendors & Ledger 🏪', icon: Store, badge: (vendors || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
                 { id: 'vendor-sheet', label: 'Material & Payment Sheet 📑', icon: FileSpreadsheet, badge: 'Auto Excel', badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
-                { id: 'accounting', label: 'Expenses & P&L 💰', icon: DollarSign },
-                { id: 'reports', label: 'Reports & Charts 📊', icon: BarChart3, badge: 'Hub Insights', badgeColor: 'bg-brand-100 text-brand-800 border border-brand-200' }
+                { id: 'accounting', label: 'Expenses & P&L 💰', icon: DollarSign }
               ]
             },
             {
@@ -5615,6 +5615,26 @@ Thank you for shopping with ${storeName}! 🙏`;
               >
                 {isWakeLockActive ? <Sun className="w-3.5 h-3.5 text-amber-600" /> : <Moon className="w-3.5 h-3.5 text-slate-400" />}
                 <span>{isWakeLockActive ? 'Awake: ON' : 'Awake'}</span>
+              </button>
+            )}
+
+            {/* Reports & Charts Quick Header Button */}
+            {(isSuperAdmin || staffPermissions.includes('reports')) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('reports');
+                  setReportModuleFilter('bestsellers');
+                }}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black border transition-all cursor-pointer shrink-0 whitespace-nowrap shadow-xs ${
+                  activeTab === 'reports'
+                    ? 'bg-amber-500 text-white border-amber-600 shadow-md ring-2 ring-amber-300'
+                    : 'bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-600 text-gray-950 border-amber-400'
+                }`}
+                title="Open Reports & Charts: Most Selling Hub Items & Visual Trends"
+              >
+                <BarChart3 className="w-3.5 h-3.5 text-gray-950 stroke-[2.5]" />
+                <span>📊 Reports & Charts</span>
               </button>
             )}
 
@@ -5946,6 +5966,46 @@ Thank you for shopping with ${storeName}! 🙏`;
               </div>
             </div>
 
+            {/* Quick Hub Bestseller Ribbon in Orders Terminal */}
+            <div className="bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-orange-500/15 border-2 border-amber-300/80 rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3 text-xs shadow-2xs">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center font-black text-lg shrink-0 shadow-xs">
+                  🔥
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-black text-xs text-amber-950 uppercase tracking-wider">
+                      Most Selling Items in Our Hub:
+                    </span>
+                    <span className="bg-amber-200/90 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                      Top 3 Bestsellers
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-700 flex items-center gap-2 flex-wrap mt-1">
+                    {bestsellerData.items.slice(0, 3).map((item, idx) => (
+                      <span key={item.id || idx} className="inline-flex items-center gap-1 font-extrabold text-gray-900 bg-white/90 px-2 py-0.5 rounded-lg border border-amber-200 shadow-2xs">
+                        <span>{idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'}</span>
+                        <span className="truncate max-w-[140px]">{item.name}</span>
+                        <span className="text-amber-800 font-black">({item.unitsSold} sold)</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTab('reports');
+                  setReportModuleFilter('bestsellers');
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer ml-auto shrink-0"
+              >
+                <BarChart3 className="w-4 h-4 text-white" />
+                <span>Open Full Reports & Charts 📊</span>
+              </button>
+            </div>
+
             <div className="bg-white p-3 rounded-2xl border border-gray-200 flex flex-wrap items-center justify-between gap-3 shadow-sm">
               <div className="flex items-center gap-2 flex-wrap">
                 <div className="relative min-w-[200px] sm:min-w-[240px]">
@@ -6017,6 +6077,19 @@ Thank you for shopping with ${storeName}! 🙏`;
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('reports');
+                    setReportModuleFilter('bestsellers');
+                  }}
+                  className="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-black text-xs rounded-xl shadow-md flex items-center gap-1.5 cursor-pointer transition-all hover:scale-[1.02] active:scale-95 shrink-0"
+                  title="View Most Selling Hub Items & Sales Charts"
+                >
+                  <BarChart3 className="w-4 h-4 text-white" />
+                  <span>📊 Reports & Charts (Bestsellers)</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={handleDownloadDeliveredOrdersExcel}
