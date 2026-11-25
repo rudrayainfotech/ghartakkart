@@ -81,7 +81,13 @@ import {
   Menu,
   ChevronRight,
   ChevronLeft,
-  LayoutDashboard
+  LayoutDashboard,
+  Trophy,
+  Medal,
+  PieChart,
+  ShoppingBag,
+  Activity,
+  LineChart
 } from 'lucide-react';
 import InvoiceModal from './InvoiceModal.jsx';
 import CreateManualOrderModal from './CreateManualOrderModal.jsx';
@@ -166,7 +172,7 @@ export default function AdminPanel() {
     { id: 'vendors', label: 'Vendors & Ledger', group: 'FINANCE & SUPPLY' },
     { id: 'vendor-sheet', label: 'Material & Payment Sheet', group: 'FINANCE & SUPPLY' },
     { id: 'accounting', label: 'Expenses & P&L', group: 'FINANCE & SUPPLY' },
-    { id: 'reports', label: 'Reports & Analytics', group: 'FINANCE & SUPPLY' },
+    { id: 'reports', label: 'Reports & Charts 📊', group: 'FINANCE & SUPPLY' },
     { id: 'offers', label: 'Offer Zone & Gifts', group: 'GROWTH & REWARDS' },
     { id: 'stamps', label: 'Customers & Wallet', group: 'GROWTH & REWARDS' },
     { id: 'radius-settings', label: 'Delivery Radius & Settings', group: 'STORE & FLEET' },
@@ -608,8 +614,18 @@ Thank you for shopping with ${storeName}! 🙏`;
   const [offerSearch, setOfferSearch] = useState('');
   const [offerFilter, setOfferFilter] = useState('all'); // 'all' | 'live' | 'paused'
 
-  // Reports Module State
-  const [reportModuleFilter, setReportModuleFilter] = useState('sales'); // 'sales' | 'daily_pnl' | 'inventory' | 'margin' | 'loyalty' | 'riders'
+  // Reports & Charts Module State
+  const [reportModuleFilter, setReportModuleFilter] = useState('bestsellers'); // 'bestsellers' | 'charts' | 'delivered_orders' | 'sales' | 'daily_pnl' | 'margin' | 'inventory' | 'loyalty' | 'riders'
+  const [bestsellerPeriod, setBestsellerPeriod] = useState('all'); // 'all' | 'today' | 'yesterday' | '7days' | '30days' | 'this_month' | 'custom'
+  const [bestsellerCustomStart, setBestsellerCustomStart] = useState('');
+  const [bestsellerCustomEnd, setBestsellerCustomEnd] = useState('');
+  const [bestsellerStatusFilter, setBestsellerStatusFilter] = useState('valid'); // 'valid' | 'delivered_only'
+  const [bestsellerSortBy, setBestsellerSortBy] = useState('units'); // 'units' | 'revenue' | 'profit' | 'orders'
+  const [bestsellerSearch, setBestsellerSearch] = useState('');
+  const [bestsellerCategory, setBestsellerCategory] = useState('all');
+  const [chartMetric, setChartMetric] = useState('revenue'); // 'revenue' | 'orders'
+  const [chartPeriod, setChartPeriod] = useState('7days'); // '7days' | '14days' | '30days' | 'hourly_today'
+  const [activeChartHover, setActiveChartHover] = useState(null);
   const [pnlPeriodFilter, setPnlPeriodFilter] = useState('all'); // 'all' | 'today' | '7days' | '30days' | 'custom'
   const [pnlStartDate, setPnlStartDate] = useState('');
   const [pnlEndDate, setPnlEndDate] = useState('');
@@ -990,22 +1006,23 @@ Thank you for shopping with ${storeName}! 🙏`;
     };
   }, [getOrderItemUnitCost]);
 
+  // Helper to get local date key YYYY-MM-DD
+  const toLocalDateKey = (isoStr) => {
+    try {
+      const d = isoStr ? new Date(isoStr) : new Date();
+      if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
+      const yr = d.getFullYear();
+      const mo = String(d.getMonth() + 1).padStart(2, '0');
+      const da = String(d.getDate()).padStart(2, '0');
+      return `${yr}-${mo}-${da}`;
+    } catch {
+      return new Date().toISOString().slice(0, 10);
+    }
+  };
+
   // Day-to-Day P&L Aggregation (Grouped by Local Date YYYY-MM-DD)
   const dailyPnlData = React.useMemo(() => {
     const dayMap = new Map();
-
-    const toLocalDateKey = (isoStr) => {
-      try {
-        const d = isoStr ? new Date(isoStr) : new Date();
-        if (isNaN(d.getTime())) return new Date().toISOString().slice(0, 10);
-        const yr = d.getFullYear();
-        const mo = String(d.getMonth() + 1).padStart(2, '0');
-        const da = String(d.getDate()).padStart(2, '0');
-        return `${yr}-${mo}-${da}`;
-      } catch {
-        return new Date().toISOString().slice(0, 10);
-      }
-    };
 
     orders.forEach(order => {
       if (!order) return;
@@ -1133,6 +1150,295 @@ Thank you for shopping with ${storeName}! 🙏`;
 
     return { allDays, filteredDays, summary, todayKey };
   }, [orders, getOrderPnlBreakdown, pnlPeriodFilter, pnlStartDate, pnlEndDate]);
+
+  // ================= HUB BESTSELLERS & MOST SELLING ITEMS AGGREGATION =================
+  const bestsellerData = React.useMemo(() => {
+    const now = new Date();
+    const todayStr = toLocalDateKey(now);
+
+    const yesterdayDate = new Date(now);
+    yesterdayDate.setDate(now.getDate() - 1);
+    const yesterdayStr = toLocalDateKey(yesterdayDate);
+
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const filteredOrders = (orders || []).filter(o => {
+      if (!o || !o.id) return false;
+
+      // Status filter
+      if (bestsellerStatusFilter === 'delivered_only') {
+        if (!isOrderDelivered(o)) return false;
+      } else {
+        const st = String(o.order_status || o.status || '').toLowerCase();
+        if (st === 'cancelled' || st === 'rejected') return false;
+      }
+
+      // Date period filter
+      const orderDate = new Date(o.created_at || o.date || 0);
+      const orderDateKey = toLocalDateKey(orderDate);
+
+      if (bestsellerPeriod === 'today') {
+        return orderDateKey === todayStr;
+      } else if (bestsellerPeriod === 'yesterday') {
+        return orderDateKey === yesterdayStr;
+      } else if (bestsellerPeriod === '7days') {
+        return orderDate.getTime() >= sevenDaysAgo;
+      } else if (bestsellerPeriod === '30days') {
+        return orderDate.getTime() >= thirtyDaysAgo;
+      } else if (bestsellerPeriod === 'this_month') {
+        return orderDate.getFullYear() === currentYear && orderDate.getMonth() === currentMonth;
+      } else if (bestsellerPeriod === 'custom') {
+        if (bestsellerCustomStart && orderDateKey < bestsellerCustomStart) return false;
+        if (bestsellerCustomEnd && orderDateKey > bestsellerCustomEnd) return false;
+        return true;
+      }
+      return true; // 'all'
+    });
+
+    const itemMap = new Map();
+    let totalHubUnits = 0;
+    let totalHubRevenue = 0;
+
+    // Index products by id and name for fast lookup
+    const prodMap = new Map();
+    (products || []).forEach(p => {
+      if (p.id) prodMap.set(String(p.id).toLowerCase(), p);
+      if (p.name) prodMap.set(String(p.name).toLowerCase().trim(), p);
+    });
+
+    filteredOrders.forEach(o => {
+      (o.items || []).forEach(it => {
+        if (!it || !it.name) return;
+        const nameKey = String(it.name).trim();
+
+        const qty = Number(it.qty) || 1;
+        const price = Number(it.price) || 0;
+        const rev = qty * price;
+
+        totalHubUnits += qty;
+        totalHubRevenue += rev;
+
+        const catalogProd = prodMap.get(String(it.product_id || '').toLowerCase()) ||
+                            prodMap.get(String(it.base_product_id || '').toLowerCase()) ||
+                            prodMap.get(nameKey.toLowerCase()) || null;
+
+        const cost = Number(it.purchase_price) || Number(catalogProd?.purchase_price) || 0;
+        const grossProfit = rev - (cost * qty);
+
+        const category = catalogProd?.category_id || it.category_id || 'General';
+        const vendorName = it.vendor_name || catalogProd?.vendor_name || (catalogProd?.vendor_id ? 'Vendor Assigned' : 'Direct Store Hub');
+        const stock = catalogProd ? Number(catalogProd.stock) || 0 : null;
+        const image = it.image || catalogProd?.image || (Array.isArray(catalogProd?.images) ? catalogProd.images[0] : '') || '';
+
+        if (!itemMap.has(nameKey)) {
+          itemMap.set(nameKey, {
+            id: it.product_id || it.base_product_id || nameKey,
+            name: nameKey,
+            unit: it.unit || catalogProd?.unit || '1 unit',
+            image,
+            category,
+            vendorName,
+            stock,
+            unitsSold: 0,
+            revenue: 0,
+            ordersCount: 0,
+            totalCost: 0,
+            grossProfit: 0,
+            sellingPrice: price,
+            costPrice: cost
+          });
+        }
+
+        const rec = itemMap.get(nameKey);
+        rec.unitsSold += qty;
+        rec.revenue += rev;
+        rec.ordersCount += 1;
+        rec.totalCost += (cost * qty);
+        rec.grossProfit += grossProfit;
+        if (!rec.image && image) rec.image = image;
+      });
+    });
+
+    let items = Array.from(itemMap.values()).map(it => {
+      const volumeSharePct = totalHubUnits > 0 ? ((it.unitsSold / totalHubUnits) * 100).toFixed(1) : 0;
+      const marginPct = it.totalCost > 0 ? Math.round((it.grossProfit / it.totalCost) * 100) : 0;
+      const stockStatus = it.stock === null ? 'Unknown' : it.stock <= 0 ? 'Out of Stock' : it.stock <= 15 ? 'Low Stock' : 'In Stock';
+      return {
+        ...it,
+        volumeSharePct: Number(volumeSharePct),
+        marginPct,
+        stockStatus
+      };
+    });
+
+    // Filter by search query
+    if (bestsellerSearch && bestsellerSearch.trim()) {
+      const q = bestsellerSearch.trim().toLowerCase();
+      items = items.filter(i => i.name.toLowerCase().includes(q) || String(i.category || '').toLowerCase().includes(q));
+    }
+
+    // Filter by category
+    if (bestsellerCategory && bestsellerCategory !== 'all') {
+      items = items.filter(i => String(i.category).toLowerCase() === bestsellerCategory.toLowerCase());
+    }
+
+    // Sort items
+    if (bestsellerSortBy === 'revenue') {
+      items.sort((a, b) => b.revenue - a.revenue);
+    } else if (bestsellerSortBy === 'profit') {
+      items.sort((a, b) => b.grossProfit - a.grossProfit);
+    } else if (bestsellerSortBy === 'orders') {
+      items.sort((a, b) => b.ordersCount - a.ordersCount);
+    } else {
+      items.sort((a, b) => b.unitsSold - a.unitsSold);
+    }
+
+    const maxUnits = items.length > 0 ? items[0].unitsSold : 1;
+
+    return {
+      items,
+      totalHubUnits,
+      totalHubRevenue,
+      uniqueCount: items.length,
+      ordersCount: filteredOrders.length,
+      maxUnits,
+      topItem: items[0] || null
+    };
+  }, [orders, products, bestsellerPeriod, bestsellerCustomStart, bestsellerCustomEnd, bestsellerStatusFilter, bestsellerSortBy, bestsellerSearch, bestsellerCategory]);
+
+  // ================= INTERACTIVE CHARTS & TRENDS AGGREGATION =================
+  const chartsData = React.useMemo(() => {
+    const now = new Date();
+    const periodDays = chartPeriod === '14days' ? 14 : chartPeriod === '30days' ? 30 : 7;
+
+    const dailyPoints = [];
+    for (let i = periodDays - 1; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(now.getDate() - i);
+      const dateKey = toLocalDateKey(d);
+      const label = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+      const dayName = d.toLocaleDateString('en-IN', { weekday: 'short' });
+      dailyPoints.push({
+        dateKey,
+        label,
+        dayName,
+        revenue: 0,
+        orders: 0,
+        units: 0
+      });
+    }
+
+    const dailyMap = new Map();
+    dailyPoints.forEach(p => dailyMap.set(p.dateKey, p));
+
+    const todayKey = toLocalDateKey(now);
+    const hourlyPoints = [];
+    for (let h = 6; h <= 23; h++) {
+      const hStr = h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
+      hourlyPoints.push({
+        hour: h,
+        label: hStr,
+        revenue: 0,
+        orders: 0,
+        units: 0
+      });
+    }
+    const hourlyMap = new Map();
+    hourlyPoints.forEach(p => hourlyMap.set(p.hour, p));
+
+    const catMap = new Map();
+    let deliveredCount = 0;
+    let activeCount = 0;
+    let cancelledCount = 0;
+
+    (orders || []).forEach(o => {
+      if (!o || !o.id) return;
+      const st = String(o.order_status || o.status || '').toLowerCase();
+      if (st === 'delivered') deliveredCount++;
+      else if (st === 'cancelled' || st === 'rejected') cancelledCount++;
+      else activeCount++;
+
+      const isCancelled = st === 'cancelled' || st === 'rejected';
+      if (isCancelled) return;
+
+      const oDate = new Date(o.created_at || 0);
+      const oDateKey = toLocalDateKey(oDate);
+      const oTotal = Number(o.total) || 0;
+      const oUnits = (o.items || []).reduce((sum, it) => sum + (Number(it.qty) || 1), 0);
+
+      if (dailyMap.has(oDateKey)) {
+        const pt = dailyMap.get(oDateKey);
+        pt.revenue += oTotal;
+        pt.orders += 1;
+        pt.units += oUnits;
+      }
+
+      if (oDateKey === todayKey) {
+        const oHour = oDate.getHours();
+        if (hourlyMap.has(oHour)) {
+          const pt = hourlyMap.get(oHour);
+          pt.revenue += oTotal;
+          pt.orders += 1;
+          pt.units += oUnits;
+        }
+      }
+
+      (o.items || []).forEach(it => {
+        const cat = it.category_id || 'General';
+        const itemRev = (Number(it.price) || 0) * (Number(it.qty) || 1);
+        const itemQty = Number(it.qty) || 1;
+        if (!catMap.has(cat)) {
+          catMap.set(cat, { category: cat, revenue: 0, units: 0 });
+        }
+        const cRec = catMap.get(cat);
+        cRec.revenue += itemRev;
+        cRec.units += itemQty;
+      });
+    });
+
+    const isHourly = chartPeriod === 'hourly_today';
+    const activePoints = isHourly ? hourlyPoints : dailyPoints;
+
+    const maxRevenue = Math.max(...activePoints.map(p => p.revenue), 100);
+    const maxOrders = Math.max(...activePoints.map(p => p.orders), 5);
+    const totalPeriodRevenue = activePoints.reduce((sum, p) => sum + p.revenue, 0);
+    const totalPeriodOrders = activePoints.reduce((sum, p) => sum + p.orders, 0);
+    const avgDailyRevenue = activePoints.length > 0 ? Math.round(totalPeriodRevenue / activePoints.length) : 0;
+
+    const categoryBreakdown = Array.from(catMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const totalCategoryRev = categoryBreakdown.reduce((sum, c) => sum + c.revenue, 0) || 1;
+
+    const totalOrdersStatus = deliveredCount + activeCount + cancelledCount || 1;
+    const deliveredPct = Math.round((deliveredCount / totalOrdersStatus) * 100);
+    const activePct = Math.round((activeCount / totalOrdersStatus) * 100);
+    const cancelledPct = Math.round((cancelledCount / totalOrdersStatus) * 100);
+
+    return {
+      activePoints,
+      isHourly,
+      maxRevenue,
+      maxOrders,
+      totalPeriodRevenue,
+      totalPeriodOrders,
+      avgDailyRevenue,
+      categoryBreakdown: categoryBreakdown.map(c => ({
+        ...c,
+        pct: Math.round((c.revenue / totalCategoryRev) * 100)
+      })),
+      statusBreakdown: {
+        deliveredCount,
+        activeCount,
+        cancelledCount,
+        total: totalOrdersStatus,
+        deliveredPct,
+        activePct,
+        cancelledPct
+      }
+    };
+  }, [orders, chartPeriod]);
 
   // ================= VENDORS & ACCOUNTING MODULE CONSTANTS & STATE =================
   const EXPENSE_CATEGORIES = [
@@ -3887,7 +4193,48 @@ Thank you for shopping with ${storeName}! 🙏`;
     let filename = '';
     const dateStr = new Date().toISOString().slice(0, 10);
 
-    if (moduleType === 'sales') {
+    if (moduleType === 'bestsellers' || moduleType === 'charts') {
+      const bestsellersList = bestsellerData?.items || [];
+      if (bestsellersList.length === 0) {
+        alert('No product sales data found for the selected period to export.');
+        return;
+      }
+      filename = `GhartakKart_Most_Selling_Hub_Items_${dateStr}.csv`;
+      headers = [
+        'Rank',
+        'Product Name',
+        'Unit',
+        'Category',
+        'Units Sold',
+        'Orders Count',
+        'Selling Price (Rs)',
+        'Purchase Cost / COGS (Rs)',
+        'Total Sales Revenue (Rs)',
+        'Gross Profit (Rs)',
+        'Profit Margin %',
+        'Share of Hub Sales Volume %',
+        'Current Stock in Hub',
+        'Stock Status',
+        'Vendor Name'
+      ];
+      rows = bestsellersList.map((item, index) => [
+        `#${index + 1}`,
+        item.name,
+        item.unit,
+        item.category,
+        item.unitsSold,
+        item.ordersCount,
+        item.sellingPrice,
+        item.costPrice,
+        item.revenue,
+        item.grossProfit,
+        `${item.marginPct}%`,
+        `${item.volumeSharePct}%`,
+        item.stock ?? 'N/A',
+        item.stockStatus,
+        item.vendorName
+      ]);
+    } else if (moduleType === 'sales') {
       filename = `GhartakKart_Sales_And_Order_PnL_${dateStr}.csv`;
       headers = [
         'Order ID',
@@ -5021,7 +5368,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                 { id: 'vendors', label: 'Vendors & Ledger 🏪', icon: Store, badge: (vendors || []).length || null, badgeColor: 'bg-slate-100 text-slate-700 border border-slate-200' },
                 { id: 'vendor-sheet', label: 'Material & Payment Sheet 📑', icon: FileSpreadsheet, badge: 'Auto Excel', badgeColor: 'bg-emerald-100 text-emerald-800 border border-emerald-300' },
                 { id: 'accounting', label: 'Expenses & P&L 💰', icon: DollarSign },
-                { id: 'reports', label: 'Reports & Analytics', icon: BarChart3 }
+                { id: 'reports', label: 'Reports & Charts 📊', icon: BarChart3, badge: 'Hub Insights', badgeColor: 'bg-brand-100 text-brand-800 border border-brand-200' }
               ]
             },
             {
@@ -5153,7 +5500,7 @@ Thank you for shopping with ${storeName}! 🙏`;
                     : activeTab === 'accounting'
                     ? 'Expenses & P&L Statements'
                     : activeTab === 'reports'
-                    ? 'Reports & Analytics'
+                    ? 'Reports & Charts 📊'
                     : activeTab === 'offers'
                     ? 'Offer Zone'
                     : activeTab === 'stamps'
@@ -5402,6 +5749,98 @@ Thank you for shopping with ${storeName}! 🙏`;
                 </div>
               </div>
             )}
+
+            {/* Top Selling Items in Hub Widget on Overview */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-bold">
+                    <Flame className="w-4 h-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-sm text-gray-900 flex items-center gap-1.5">
+                      <span>Top Selling Items in Our Hub</span>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-900">
+                        Bestsellers
+                      </span>
+                    </h3>
+                    <p className="text-xs text-gray-500">Fastest-moving items based on total units dispatched from hub</p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('reports');
+                    setReportModuleFilter('bestsellers');
+                  }}
+                  className="inline-flex items-center gap-1.5 text-xs font-extrabold text-brand-700 hover:text-brand-900 hover:underline cursor-pointer"
+                >
+                  <span>View Full Reports & Charts</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {bestsellerData.items.length === 0 ? (
+                <div className="p-6 text-center text-gray-400 text-xs font-semibold">
+                  No orders recorded yet to rank bestselling hub items.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+                  {bestsellerData.items.slice(0, 5).map((item, idx) => {
+                    const rankMedal = idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : `#${idx + 1}`;
+                    return (
+                      <div
+                        key={item.id || idx}
+                        className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+                          idx === 0
+                            ? 'bg-gradient-to-br from-amber-50/80 to-yellow-50/40 border-amber-300 shadow-sm'
+                            : 'bg-gray-50/60 border-gray-200 hover:bg-gray-50'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-black">{rankMedal}</span>
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-600 truncate max-w-[90px]">
+                            {item.category}
+                          </span>
+                        </div>
+
+                        <div className="my-2 flex items-center gap-2.5">
+                          {item.image ? (
+                            <img
+                              src={item.image}
+                              alt={item.name}
+                              className="w-10 h-10 object-contain rounded-lg border border-gray-200 bg-white p-0.5 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-xs shrink-0">
+                              📦
+                            </div>
+                          )}
+                          <div className="min-w-0 flex-1">
+                            <span className="font-extrabold text-xs text-gray-900 block truncate" title={item.name}>
+                              {item.name}
+                            </span>
+                            <span className="text-[10px] text-gray-500 font-medium">{item.unit}</span>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-gray-200/60 flex items-center justify-between text-xs">
+                          <div>
+                            <span className="text-[10px] text-gray-400 block font-bold">SOLD</span>
+                            <span className="font-black text-gray-900">{item.unitsSold} units</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] text-gray-400 block font-bold">REVENUE</span>
+                            <span className="font-black text-emerald-700">₹{item.revenue.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
@@ -9763,6 +10202,8 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                 {/* Module Filter Pills */}
                 <div className="flex flex-wrap items-center gap-1.5 bg-gray-100 p-1.5 rounded-2xl">
                   {[
+                    { id: 'bestsellers', label: '🔥 Most Selling Hub Items' },
+                    { id: 'charts', label: '📊 Visual Charts & Trends' },
                     { id: 'delivered_orders', label: 'Delivered Orders & Contacts 📦' },
                     { id: 'sales', label: 'Sales & Day-to-Day P&L' },
                     { id: 'daily_pnl', label: 'Day-by-Day P&L Statement' },
@@ -9804,6 +10245,751 @@ ${order.admin_remark ? `📝 *Admin Note:* ${order.admin_remark}\n` : ''}
                 </button>
               </div>
             </div>
+
+            {/* SUB-REPORT 0A: MOST SELLING HUB ITEMS (BESTSELLERS) */}
+            {reportModuleFilter === 'bestsellers' && (
+              <div className="space-y-5">
+                {/* Header & Filter Controls Bar */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-700 flex items-center justify-center font-black shrink-0">
+                        <Flame className="w-5 h-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <h4 className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center gap-2 flex-wrap">
+                          <span>🔥 Most Selling Items in Our Hub (Bestsellers)</span>
+                          <span className="bg-amber-100 text-amber-900 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase">
+                            Fast Moving SKUs
+                          </span>
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          Rank items by total units dispatched from hub, gross revenue generated, customer order frequency, and available stock.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleExportExcel('bestsellers')}
+                        className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs rounded-xl flex items-center gap-1.5 shadow-sm transition-all cursor-pointer"
+                        title="Download Most Selling Items in Excel"
+                      >
+                        <FileSpreadsheet className="w-4 h-4" />
+                        <span>Export Bestsellers Excel</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Filter Toolbar: Periods, Category, Search, Sort */}
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    {/* Period Pills */}
+                    <div className="flex flex-wrap items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                      {[
+                        { id: 'all', label: 'All Time' },
+                        { id: 'today', label: 'Today' },
+                        { id: 'yesterday', label: 'Yesterday' },
+                        { id: '7days', label: 'Last 7 Days' },
+                        { id: '30days', label: 'Last 30 Days' },
+                        { id: 'this_month', label: 'This Month' },
+                        { id: 'custom', label: 'Custom' }
+                      ].map(p => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setBestsellerPeriod(p.id)}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            bestsellerPeriod === p.id
+                              ? 'bg-brand-600 text-white shadow-xs'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          {p.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Custom Date Pickers */}
+                    {bestsellerPeriod === 'custom' && (
+                      <div className="flex flex-wrap items-center gap-1.5 bg-gray-50 px-2.5 py-1.5 rounded-xl border border-gray-200 text-xs">
+                        <span className="text-[10px] font-bold text-gray-500">From:</span>
+                        <input
+                          type="date"
+                          value={bestsellerCustomStart}
+                          onChange={(e) => setBestsellerCustomStart(e.target.value)}
+                          className="px-2 py-1 rounded-lg border border-gray-300 text-xs font-semibold bg-white"
+                        />
+                        <span className="text-[10px] font-bold text-gray-500">To:</span>
+                        <input
+                          type="date"
+                          value={bestsellerCustomEnd}
+                          onChange={(e) => setBestsellerCustomEnd(e.target.value)}
+                          className="px-2 py-1 rounded-lg border border-gray-300 text-xs font-semibold bg-white"
+                        />
+                      </div>
+                    )}
+
+                    {/* Quick Filters: Status, Category, Sort, Search */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Status Toggle */}
+                      <select
+                        value={bestsellerStatusFilter}
+                        onChange={(e) => setBestsellerStatusFilter(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-700 cursor-pointer"
+                      >
+                        <option value="valid">All Successful Orders (Delivered + Active)</option>
+                        <option value="delivered_only">Delivered Orders Only</option>
+                      </select>
+
+                      {/* Category Filter */}
+                      <select
+                        value={bestsellerCategory}
+                        onChange={(e) => setBestsellerCategory(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-700 cursor-pointer"
+                      >
+                        <option value="all">All Categories</option>
+                        {(categories || []).map(c => (
+                          <option key={c.id || c.name} value={c.id || c.name}>
+                            {c.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      {/* Sort Filter */}
+                      <select
+                        value={bestsellerSortBy}
+                        onChange={(e) => setBestsellerSortBy(e.target.value)}
+                        className="px-2.5 py-1.5 rounded-xl border border-gray-300 text-xs font-bold bg-white text-gray-700 cursor-pointer"
+                      >
+                        <option value="units">Sort by: Most Units Sold</option>
+                        <option value="revenue">Sort by: Highest Revenue (₹)</option>
+                        <option value="profit">Sort by: Gross Profit (₹)</option>
+                        <option value="orders">Sort by: Orders Count</option>
+                      </select>
+
+                      {/* Search Bar */}
+                      <div className="relative">
+                        <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={bestsellerSearch}
+                          onChange={(e) => setBestsellerSearch(e.target.value)}
+                          placeholder="Search product..."
+                          className="pl-8 pr-3 py-1.5 rounded-xl border border-gray-300 text-xs font-medium bg-white w-44 focus:w-56 transition-all"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI Overview Cards */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+                  <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-4 rounded-2xl border border-amber-200 shadow-sm">
+                    <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block flex items-center gap-1">
+                      <Trophy className="w-3 h-3 text-amber-600" />
+                      #1 Bestseller Item
+                    </span>
+                    <span className="text-sm sm:text-base font-black text-gray-900 mt-1 block truncate" title={bestsellerData.topItem?.name}>
+                      {bestsellerData.topItem ? bestsellerData.topItem.name : 'None'}
+                    </span>
+                    <span className="text-[11px] font-bold text-amber-900 mt-0.5 block">
+                      {bestsellerData.topItem ? `${bestsellerData.topItem.unitsSold} units (${bestsellerData.topItem.volumeSharePct}% volume)` : 'No sales'}
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Total Units Dispatched</span>
+                    <span className="text-xl sm:text-2xl font-black text-gray-900 mt-1 block">
+                      {bestsellerData.totalHubUnits.toLocaleString()} units
+                    </span>
+                    <span className="text-[10px] text-gray-500 mt-0.5 block">
+                      Sold from hub in selected period
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Items Gross Revenue</span>
+                    <span className="text-xl sm:text-2xl font-black text-emerald-700 mt-1 block">
+                      ₹{bestsellerData.totalHubRevenue.toLocaleString()}
+                    </span>
+                    <span className="text-[10px] text-gray-500 mt-0.5 block">
+                      Across {bestsellerData.ordersCount} qualifying orders
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Active Products Sold</span>
+                    <span className="text-xl sm:text-2xl font-black text-brand-700 mt-1 block">
+                      {bestsellerData.uniqueCount} SKUs
+                    </span>
+                    <span className="text-[10px] text-gray-500 mt-0.5 block">
+                      Unique catalog items ordered
+                    </span>
+                  </div>
+
+                  <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-sm">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Avg Units Per Order</span>
+                    <span className="text-xl sm:text-2xl font-black text-blue-600 mt-1 block">
+                      {bestsellerData.ordersCount > 0 ? (bestsellerData.totalHubUnits / bestsellerData.ordersCount).toFixed(1) : 0} items
+                    </span>
+                    <span className="text-[10px] text-gray-500 mt-0.5 block">
+                      Average customer cart size
+                    </span>
+                  </div>
+                </div>
+
+                {/* Top 3 Champions Podium Showcase */}
+                {bestsellerData.items.length >= 3 && !bestsellerSearch && bestsellerCategory === 'all' && (
+                  <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-500/10 rounded-2xl border border-amber-300/60 p-4 sm:p-5 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Trophy className="w-5 h-5 text-amber-600" />
+                        <h4 className="font-black text-sm uppercase tracking-wider text-amber-950">
+                          Hub Bestseller Champions Podium
+                        </h4>
+                      </div>
+                      <span className="text-[11px] font-bold text-amber-800">
+                        Top 3 highest volume products
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {bestsellerData.items.slice(0, 3).map((champion, cIdx) => {
+                        const isFirst = cIdx === 0;
+                        const isSecond = cIdx === 1;
+                        const medalIcon = isFirst ? '🥇 #1 CHAMPION' : isSecond ? '🥈 #2 RUNNER-UP' : '🥉 #3 THIRD';
+                        const badgeStyle = isFirst
+                          ? 'bg-gradient-to-br from-amber-500 to-yellow-600 text-white shadow-md'
+                          : isSecond
+                          ? 'bg-gradient-to-br from-slate-400 to-slate-600 text-white shadow-sm'
+                          : 'bg-gradient-to-br from-amber-700 to-amber-900 text-white shadow-sm';
+
+                        return (
+                          <div
+                            key={champion.id || cIdx}
+                            className={`p-4 rounded-2xl bg-white border-2 flex flex-col justify-between shadow-sm transition-transform hover:-translate-y-0.5 ${
+                              isFirst ? 'border-amber-400 ring-2 ring-amber-300/40' : 'border-gray-200'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full ${badgeStyle}`}>
+                                {medalIcon}
+                              </span>
+                              <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-lg bg-gray-100 text-gray-700">
+                                {champion.volumeSharePct}% of hub sales
+                              </span>
+                            </div>
+
+                            <div className="my-3 flex items-center gap-3">
+                              {champion.image ? (
+                                <img
+                                  src={champion.image}
+                                  alt={champion.name}
+                                  className="w-14 h-14 object-contain rounded-xl border border-gray-200 bg-white p-1 shrink-0 shadow-xs"
+                                />
+                              ) : (
+                                <div className="w-14 h-14 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center font-black text-xl shrink-0 border border-amber-200">
+                                  📦
+                                </div>
+                              )}
+                              <div className="min-w-0 flex-1">
+                                <h5 className="font-extrabold text-sm text-gray-900 leading-tight truncate" title={champion.name}>
+                                  {champion.name}
+                                </h5>
+                                <span className="text-xs text-gray-500 font-medium block mt-0.5">{champion.unit}</span>
+                                <span className="text-[10px] font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded inline-block mt-1">
+                                  {champion.category}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center text-xs">
+                              <div className="bg-gray-50 p-2 rounded-xl">
+                                <span className="text-[9px] font-bold text-gray-400 block uppercase">Units Sold</span>
+                                <span className="font-black text-gray-900 text-sm">{champion.unitsSold}</span>
+                              </div>
+                              <div className="bg-emerald-50 p-2 rounded-xl">
+                                <span className="text-[9px] font-bold text-emerald-600 block uppercase">Revenue</span>
+                                <span className="font-black text-emerald-700 text-sm">₹{champion.revenue.toLocaleString()}</span>
+                              </div>
+                              <div className="bg-gray-50 p-2 rounded-xl">
+                                <span className="text-[9px] font-bold text-gray-400 block uppercase">Stock</span>
+                                <span className={`font-black text-xs ${
+                                  champion.stock <= 0 ? 'text-rose-600' : champion.stock <= 15 ? 'text-amber-600' : 'text-emerald-700'
+                                }`}>
+                                  {champion.stock ?? 'N/A'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Main Ranked Table of Bestsellers */}
+                <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                  <div className="p-4 border-b border-gray-100 flex flex-wrap items-center justify-between gap-2 bg-gradient-to-r from-amber-50/40 via-white to-gray-50">
+                    <div>
+                      <h4 className="font-extrabold text-xs sm:text-sm uppercase tracking-wider text-gray-900 flex items-center gap-2">
+                        <span>📋 All Ranked Hub Items by Popularity & Sales</span>
+                        <span className="text-[10px] bg-brand-100 text-brand-800 px-2 py-0.5 rounded-full font-black">
+                          {bestsellerData.items.length} Products Found
+                        </span>
+                      </h4>
+                      <p className="text-[11px] text-gray-500 mt-0.5">
+                        Proportional progress bar illustrates demand relative to the #1 top-selling hub item.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleExportExcel('bestsellers')}
+                      className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Download Excel</span>
+                    </button>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase text-[10px]">
+                        <tr>
+                          <th className="p-3">Rank</th>
+                          <th className="p-3">Product Name & Unit</th>
+                          <th className="p-3">Category</th>
+                          <th className="p-3">Units Sold (Hub Demand Bar)</th>
+                          <th className="p-3">Volume Share</th>
+                          <th className="p-3">Orders</th>
+                          <th className="p-3">Selling Price</th>
+                          <th className="p-3">Total Revenue</th>
+                          <th className="p-3">Gross Profit</th>
+                          <th className="p-3">Hub Stock</th>
+                          <th className="p-3">Vendor</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {bestsellerData.items.length === 0 ? (
+                          <tr>
+                            <td colSpan="11" className="p-8 text-center text-gray-400 font-semibold">
+                              No product sales matching the selected filters.
+                            </td>
+                          </tr>
+                        ) : (
+                          bestsellerData.items.map((item, idx) => {
+                            const rank = idx + 1;
+                            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : null;
+                            const barPercent = Math.max(4, Math.round((item.unitsSold / bestsellerData.maxUnits) * 100));
+
+                            return (
+                              <tr key={item.id || idx} className="hover:bg-gray-50/80 transition-colors">
+                                <td className="p-3 whitespace-nowrap">
+                                  {medal ? (
+                                    <span className="text-base" title={`#${rank}`}>{medal}</span>
+                                  ) : (
+                                    <span className="font-mono font-bold text-gray-400 text-xs pl-1">#{rank}</span>
+                                  )}
+                                </td>
+
+                                <td className="p-3">
+                                  <div className="flex items-center gap-2.5 max-w-xs">
+                                    {item.image ? (
+                                      <img
+                                        src={item.image}
+                                        alt={item.name}
+                                        className="w-8 h-8 object-contain rounded-lg border border-gray-200 bg-white p-0.5 shrink-0"
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8 rounded-lg bg-gray-100 text-gray-400 flex items-center justify-center font-bold text-xs shrink-0">
+                                        📦
+                                      </div>
+                                    )}
+                                    <div className="min-w-0">
+                                      <span className="font-extrabold text-gray-900 block truncate" title={item.name}>
+                                        {item.name}
+                                      </span>
+                                      <span className="text-[10px] text-gray-500 font-medium">{item.unit}</span>
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap">
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-gray-100 text-gray-700">
+                                    {item.category}
+                                  </span>
+                                </td>
+
+                                <td className="p-3 min-w-[160px]">
+                                  <div className="space-y-1">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="font-black text-gray-900">{item.unitsSold} units</span>
+                                      <span className="text-[10px] font-semibold text-gray-400">{barPercent}%</span>
+                                    </div>
+                                    <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                                      <div
+                                        className={`h-full rounded-full transition-all ${
+                                          rank === 1
+                                            ? 'bg-gradient-to-r from-amber-500 to-yellow-500'
+                                            : rank === 2
+                                            ? 'bg-gradient-to-r from-slate-400 to-slate-600'
+                                            : rank === 3
+                                            ? 'bg-gradient-to-r from-amber-700 to-amber-900'
+                                            : 'bg-brand-600'
+                                        }`}
+                                        style={{ width: `${barPercent}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap font-semibold text-gray-600">
+                                  {item.volumeSharePct}%
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap font-bold text-gray-700">
+                                  {item.ordersCount}
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap font-bold text-gray-900">
+                                  ₹{item.sellingPrice}
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap font-black text-emerald-700 text-sm">
+                                  ₹{item.revenue.toLocaleString()}
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap">
+                                  <span className={`font-bold block ${item.grossProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                                    {item.grossProfit >= 0 ? `+₹${item.grossProfit.toLocaleString()}` : `-₹${Math.abs(item.grossProfit).toLocaleString()}`}
+                                  </span>
+                                  {item.totalCost > 0 && (
+                                    <span className="text-[10px] text-gray-400 block">{item.marginPct}% margin</span>
+                                  )}
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap">
+                                  <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
+                                    item.stockStatus === 'Out of Stock'
+                                      ? 'bg-rose-100 text-rose-800'
+                                      : item.stockStatus === 'Low Stock'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
+                                    {item.stock !== null ? `${item.stock} in stock` : 'N/A'}
+                                  </span>
+                                </td>
+
+                                <td className="p-3 whitespace-nowrap text-gray-500 text-[11px] truncate max-w-[120px]" title={item.vendorName}>
+                                  {item.vendorName}
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* SUB-REPORT 0B: VISUAL CHARTS & TRENDS */}
+            {reportModuleFilter === 'charts' && (
+              <div className="space-y-5">
+                {/* Chart Header & Period / Metric Toggles */}
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h4 className="font-extrabold text-sm sm:text-base text-gray-900 flex items-center gap-2">
+                      <LineChart className="w-5 h-5 text-brand-600" />
+                      <span>📈 Hub Sales, Revenue & Order Volume Trends</span>
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Interactive chart visualizing daily/hourly gross sales revenue, order dispatch volume, and category distribution.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Metric Switcher */}
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => setChartMetric('revenue')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          chartMetric === 'revenue'
+                            ? 'bg-emerald-600 text-white shadow-xs'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Revenue (₹)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setChartMetric('orders')}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          chartMetric === 'orders'
+                            ? 'bg-brand-600 text-white shadow-xs'
+                            : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        Orders Volume
+                      </button>
+                    </div>
+
+                    {/* Period Switcher */}
+                    <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-xl">
+                      {[
+                        { id: '7days', label: 'Last 7 Days' },
+                        { id: '14days', label: 'Last 14 Days' },
+                        { id: '30days', label: 'Last 30 Days' },
+                        { id: 'hourly_today', label: 'Hourly Today' }
+                      ].map(cp => (
+                        <button
+                          key={cp.id}
+                          type="button"
+                          onClick={() => setChartPeriod(cp.id)}
+                          className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                            chartPeriod === cp.id
+                              ? 'bg-gray-900 text-white shadow-xs'
+                              : 'text-gray-600 hover:text-gray-900'
+                          }`}
+                        >
+                          {cp.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* SVG Visual Bar Chart Canvas */}
+                <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-xl bg-brand-50 text-brand-700">
+                        <Activity className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-black uppercase tracking-wider text-gray-400 block">
+                          {chartMetric === 'revenue' ? 'TOTAL PERIOD REVENUE' : 'TOTAL ORDERS DISPATCHED'}
+                        </span>
+                        <span className="text-xl sm:text-2xl font-black text-gray-900">
+                          {chartMetric === 'revenue' ? `₹${chartsData.totalPeriodRevenue.toLocaleString()}` : `${chartsData.totalPeriodOrders} Orders`}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 text-xs font-bold">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-3 h-3 rounded bg-emerald-500 inline-block" />
+                        <span className="text-gray-600">
+                          {chartMetric === 'revenue' ? 'Daily Revenue (₹)' : 'Order Volume'}
+                        </span>
+                      </div>
+                      <div className="text-gray-400 font-semibold">
+                        Avg: {chartMetric === 'revenue' ? `₹${chartsData.avgDailyRevenue.toLocaleString()}/day` : `${Math.round(chartsData.totalPeriodOrders / (chartsData.activePoints.length || 1))} orders/day`}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* SVG Chart Render */}
+                  <div className="w-full overflow-x-auto pt-4 pb-2">
+                    <div className="min-w-[640px] h-64 relative">
+                      <svg className="w-full h-full" viewBox="0 0 760 220" preserveAspectRatio="none">
+                        <defs>
+                          <linearGradient id="chartBarGradientRev" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#10b981" />
+                            <stop offset="100%" stopColor="#059669" />
+                          </linearGradient>
+                          <linearGradient id="chartBarGradientOrd" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor="#1e3a8a" />
+                            <stop offset="100%" stopColor="#3b82f6" />
+                          </linearGradient>
+                        </defs>
+
+                        {/* Background Grid Lines */}
+                        {[0, 0.25, 0.5, 0.75, 1].map((ratio, gIdx) => {
+                          const y = 175 - (ratio * 145);
+                          const val = chartMetric === 'revenue'
+                            ? Math.round(chartsData.maxRevenue * ratio)
+                            : Math.round(chartsData.maxOrders * ratio);
+                          return (
+                            <g key={gIdx}>
+                              <line x1="45" y1={y} x2="750" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="3 3" />
+                              <text x="40" y={y + 3} textAnchor="end" fontSize="9" fill="#94a3b8" fontWeight="600">
+                                {chartMetric === 'revenue' ? (val >= 1000 ? `${(val/1000).toFixed(1)}k` : val) : val}
+                              </text>
+                            </g>
+                          );
+                        })}
+
+                        {/* Bars Render */}
+                        {(() => {
+                          const pts = chartsData.activePoints;
+                          const barWidth = Math.max(12, Math.min(38, Math.floor(660 / (pts.length * 1.5))));
+                          const gap = (700 - (pts.length * barWidth)) / (pts.length + 1);
+
+                          return pts.map((pt, pIdx) => {
+                            const val = chartMetric === 'revenue' ? pt.revenue : pt.orders;
+                            const max = chartMetric === 'revenue' ? chartsData.maxRevenue : chartsData.maxOrders;
+                            const barHeight = max > 0 ? Math.max(4, (val / max) * 145) : 4;
+                            const x = 55 + (pIdx * (barWidth + gap));
+                            const y = 175 - barHeight;
+                            const isHovered = activeChartHover?.label === pt.label;
+                            const fillUrl = chartMetric === 'revenue' ? 'url(#chartBarGradientRev)' : 'url(#chartBarGradientOrd)';
+
+                            return (
+                              <g
+                                key={pIdx}
+                                className="cursor-pointer transition-all duration-200"
+                                onMouseEnter={() => setActiveChartHover(pt)}
+                                onMouseLeave={() => setActiveChartHover(null)}
+                              >
+                                <rect
+                                  x={x}
+                                  y={y}
+                                  width={barWidth}
+                                  height={barHeight}
+                                  rx="4"
+                                  fill={fillUrl}
+                                  opacity={isHovered ? 1 : 0.88}
+                                  filter={isHovered ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.15))' : 'none'}
+                                />
+                                {val > 0 && (
+                                  <text
+                                    x={x + (barWidth / 2)}
+                                    y={y - 5}
+                                    textAnchor="middle"
+                                    fontSize="9"
+                                    fontWeight="800"
+                                    fill={chartMetric === 'revenue' ? '#047857' : '#1d4ed8'}
+                                  >
+                                    {chartMetric === 'revenue' ? (val >= 1000 ? `₹${(val/1000).toFixed(1)}k` : `₹${val}`) : val}
+                                  </text>
+                                )}
+                                <text
+                                  x={x + (barWidth / 2)}
+                                  y={193}
+                                  textAnchor="middle"
+                                  fontSize="9"
+                                  fontWeight={isHovered ? '800' : '600'}
+                                  fill={isHovered ? '#0f172a' : '#64748b'}
+                                >
+                                  {pt.label}
+                                </text>
+                              </g>
+                            );
+                          });
+                        })()}
+                      </svg>
+
+                      {/* Floating Tooltip when hovering over a bar */}
+                      {activeChartHover && (
+                        <div className="absolute top-2 right-4 bg-gray-900 text-white p-3 rounded-xl shadow-xl text-xs space-y-1 pointer-events-none z-10 border border-gray-700 animate-in fade-in zoom-in-95">
+                          <div className="font-extrabold text-sm text-emerald-400 flex items-center gap-1.5">
+                            <span>{activeChartHover.label}</span>
+                            {activeChartHover.dayName && <span className="text-gray-400 text-xs">({activeChartHover.dayName})</span>}
+                          </div>
+                          <div className="text-gray-300">
+                            Revenue: <strong className="text-white">₹{activeChartHover.revenue.toLocaleString()}</strong>
+                          </div>
+                          <div className="text-gray-300">
+                            Orders: <strong className="text-white">{activeChartHover.orders}</strong>
+                          </div>
+                          <div className="text-gray-300">
+                            Units Sold: <strong className="text-white">{activeChartHover.units}</strong>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Two-Column Analytics: Category Breakdown & Fulfillment Status */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {/* Category Breakdown */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-3">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <PieChart className="w-4 h-4 text-brand-600" />
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-gray-900">
+                          Category-wise Sales Volume
+                        </h4>
+                      </div>
+                      <span className="text-[10px] text-gray-500 font-bold">
+                        Top Categories by Revenue
+                      </span>
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                      {chartsData.categoryBreakdown.slice(0, 6).map((cat, idx) => (
+                        <div key={cat.category || idx} className="space-y-1">
+                          <div className="flex items-center justify-between text-xs font-bold">
+                            <span className="text-gray-800">{cat.category}</span>
+                            <span className="text-gray-900">
+                              ₹{cat.revenue.toLocaleString()} ({cat.pct}%)
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
+                            <div
+                              className="h-full rounded-full bg-brand-600"
+                              style={{ width: `${Math.max(4, cat.pct)}%` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Order Fulfillment Distribution */}
+                  <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-sm space-y-4">
+                    <div className="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <h4 className="font-extrabold text-xs uppercase tracking-wider text-gray-900">
+                          Order Fulfillment & Success Rate
+                        </h4>
+                      </div>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
+                        {chartsData.statusBreakdown.deliveredPct}% Success
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2.5 text-center text-xs">
+                      <div className="p-3 bg-emerald-50/80 rounded-xl border border-emerald-200">
+                        <span className="text-[10px] font-bold text-emerald-700 block uppercase">Delivered</span>
+                        <span className="text-lg font-black text-emerald-800 mt-0.5 block">
+                          {chartsData.statusBreakdown.deliveredCount}
+                        </span>
+                        <span className="text-[10px] font-semibold text-emerald-600">{chartsData.statusBreakdown.deliveredPct}%</span>
+                      </div>
+
+                      <div className="p-3 bg-amber-50/80 rounded-xl border border-amber-200">
+                        <span className="text-[10px] font-bold text-amber-700 block uppercase">In Dispatch</span>
+                        <span className="text-lg font-black text-amber-800 mt-0.5 block">
+                          {chartsData.statusBreakdown.activeCount}
+                        </span>
+                        <span className="text-[10px] font-semibold text-amber-600">{chartsData.statusBreakdown.activePct}%</span>
+                      </div>
+
+                      <div className="p-3 bg-rose-50/80 rounded-xl border border-rose-200">
+                        <span className="text-[10px] font-bold text-rose-700 block uppercase">Cancelled</span>
+                        <span className="text-lg font-black text-rose-800 mt-0.5 block">
+                          {chartsData.statusBreakdown.cancelledCount}
+                        </span>
+                        <span className="text-[10px] font-semibold text-rose-600">{chartsData.statusBreakdown.cancelledPct}%</span>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 text-xs text-gray-500 flex items-center justify-between">
+                      <span>Total orders processed in hub: <strong>{chartsData.statusBreakdown.total}</strong></span>
+                      <span className="text-emerald-700 font-bold">Safe & Verified Dispatch</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* SUB-REPORT 1 & 1B: SALES, REVENUE & DAY-TO-DAY P&L */}
             {(reportModuleFilter === 'sales' || reportModuleFilter === 'daily_pnl') && (
