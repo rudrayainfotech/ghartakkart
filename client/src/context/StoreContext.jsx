@@ -1367,7 +1367,7 @@ export function StoreProvider({ children }) {
     // If order was recently updated by admin in this window, keep the local version
     if (window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.has(incomingOrder.id)) {
       const recent = window.__gkRecentlyUpdatedOrders.get(incomingOrder.id);
-      if (Date.now() - recent.time < 15000) {
+      if (Date.now() - recent.time < 60000) {
         return;
       }
     }
@@ -1394,7 +1394,20 @@ export function StoreProvider({ children }) {
         const inTime = new Date(incomingOrder.updated_at || incomingOrder.created_at || 0).getTime();
 
         if (inRank > exRank || inTime >= exTime) {
-          currentList[idx] = { ...existing, ...incomingOrder };
+          // Guard against stale incoming items overwriting newer local edits
+          const preserveExistingItems = exTime > inTime && Array.isArray(existing.items) && existing.items.length > 0;
+          const mergedItems = preserveExistingItems ? existing.items : (incomingOrder.items || existing.items);
+          const mergedTotal = preserveExistingItems ? (existing.total ?? incomingOrder.total) : (incomingOrder.total ?? existing.total);
+          const mergedSubtotal = preserveExistingItems ? (existing.subtotal ?? incomingOrder.subtotal) : (incomingOrder.subtotal ?? existing.subtotal);
+
+          currentList[idx] = {
+            ...existing,
+            ...incomingOrder,
+            items: mergedItems,
+            total: mergedTotal,
+            subtotal: mergedSubtotal,
+            updated_at: (exTime > inTime ? existing.updated_at : incomingOrder.updated_at) || new Date().toISOString()
+          };
           nextList = [...currentList];
         } else {
           return prevOrders;
@@ -1464,7 +1477,7 @@ export function StoreProvider({ children }) {
     // Re-apply any recently updated orders from this session (guarantees local edits are never reverted by remote polls)
     if (window.__gkRecentlyUpdatedOrders && window.__gkRecentlyUpdatedOrders.size > 0) {
       for (const [id, record] of window.__gkRecentlyUpdatedOrders.entries()) {
-        if (record && record.order && (Date.now() - record.time < 30000)) {
+        if (record && record.order && (Date.now() - record.time < 60000)) {
           orderMap.set(id, record.order);
         }
       }
@@ -1537,7 +1550,16 @@ export function StoreProvider({ children }) {
           const inTime = new Date(inOrd.updated_at || inOrd.created_at || 0).getTime();
           // Inbox item only replaces if it has higher rank (e.g. Cancelled/Delivered), or same rank with strictly newer timestamp
           if (inRank > exRank || (inRank === exRank && inTime > exTime)) {
-            map.set(inOrd.id, { ...existing, ...inOrd });
+            // If existing orders record has more recent or equal timestamp, never let inbox items overwrite edited items
+            const preserveExistingItems = exTime >= inTime && Array.isArray(existing.items) && existing.items.length > 0;
+            map.set(inOrd.id, {
+              ...existing,
+              ...inOrd,
+              items: preserveExistingItems ? existing.items : (inOrd.items || existing.items),
+              total: preserveExistingItems ? (existing.total ?? inOrd.total) : (inOrd.total ?? existing.total),
+              subtotal: preserveExistingItems ? (existing.subtotal ?? inOrd.subtotal) : (inOrd.subtotal ?? existing.subtotal),
+              updated_at: exTime > inTime ? existing.updated_at : inOrd.updated_at
+            });
           }
         }
       }

@@ -2130,7 +2130,13 @@ Thank you for shopping with ${storeName}! 🙏`;
           const patchedInbox = inboxData
             .map(io => {
               if (io && String(io.id) === String(orderId)) {
-                return { ...io, order_status: newStatus, status: newStatus, updated_at: nowIso };
+                return {
+                  ...io,
+                  ...(updatedOrder || {}),
+                  order_status: newStatus,
+                  status: newStatus,
+                  updated_at: nowIso
+                };
               }
               return io;
             })
@@ -2215,6 +2221,28 @@ Thank you for shopping with ${storeName}! 🙏`;
       broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     }
     await syncToFirebase('orders', updatedList);
+
+    // Also synchronize orders_inbox in Supabase so item vendor edits persist in inbox
+    (async () => {
+      try {
+        const inboxData = await fetchNodeFromSupabase('orders_inbox');
+        if (Array.isArray(inboxData)) {
+          const patchedInbox = inboxData.map(io => {
+            if (io && String(io.id) === String(orderId)) {
+              return {
+                ...io,
+                ...(updatedOrder || {}),
+                updated_at: nowIso
+              };
+            }
+            return io;
+          });
+          await syncNodeToSupabase('orders_inbox', patchedInbox);
+        }
+      } catch (err) {
+        console.warn('orders_inbox sync in handleSaveItemVendor error:', err);
+      }
+    })();
   };
 
   // Handle Edit Order Vendor Details (Manually fill or select vendor)
@@ -2545,6 +2573,28 @@ Thank you for shopping with ${storeName}! 🙏`;
       broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     }
     await syncToFirebase('orders', updatedList);
+
+    // Also synchronize orders_inbox in Supabase so item vendor edits persist in inbox
+    (async () => {
+      try {
+        const inboxData = await fetchNodeFromSupabase('orders_inbox');
+        if (Array.isArray(inboxData)) {
+          const patchedInbox = inboxData.map(io => {
+            if (io && String(io.id) === String(orderId)) {
+              return {
+                ...io,
+                ...(updatedOrder || {}),
+                updated_at: nowIso
+              };
+            }
+            return io;
+          });
+          await syncNodeToSupabase('orders_inbox', patchedInbox);
+        }
+      } catch (err) {
+        console.warn('orders_inbox sync in handleSaveItemVendor error:', err);
+      }
+    })();
   };
 
   // =========================================================================
@@ -2771,6 +2821,36 @@ Thank you for shopping with ${storeName}! 🙏`;
       broadcastStoreEvent('ORDER_STATUS_CHANGED', updatedOrder);
     }
     await syncToFirebase('orders', updatedList);
+
+    // Synchronize orders_inbox so fast polling does not revert edited items or quantities
+    (async () => {
+      try {
+        const inboxData = await fetchNodeFromSupabase('orders_inbox');
+        if (Array.isArray(inboxData)) {
+          const isTerminal = ['Delivered', 'Cancelled', 'Rejected'].includes(editingFullOrder.order_status);
+          const patchedInbox = inboxData
+            .map(io => {
+              if (io && String(io.id) === String(orderId)) {
+                return {
+                  ...io,
+                  ...(updatedOrder || {}),
+                  updated_at: nowIso
+                };
+              }
+              return io;
+            })
+            .filter(io => {
+              if (!io || !io.id) return false;
+              if (String(io.id) === String(orderId) && isTerminal) return false;
+              const st = io.order_status || io.status;
+              return !['Delivered', 'Cancelled', 'Rejected'].includes(st);
+            });
+          await syncNodeToSupabase('orders_inbox', patchedInbox);
+        }
+      } catch (err) {
+        console.warn('orders_inbox sync in handleSaveFullOrder error:', err);
+      }
+    })();
 
     alert(`✅ Order #${orderId} successfully updated!`);
   };
