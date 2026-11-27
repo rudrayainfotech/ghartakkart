@@ -415,9 +415,6 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <div className="bg-white border border-rose-300 px-3.5 py-2 rounded-xl text-xs font-extrabold text-rose-900 shrink-0 self-start sm:self-center">
-                  ⏰ Store Hours: {storeStatus.openFormatted} – {storeStatus.closeFormatted}
-                </div>
               </div>
             </div>
           )}
@@ -1090,7 +1087,7 @@ export default function App() {
               <span>🔒 Privacy Policy</span>
             </button>
             <span>•</span>
-            <span>⚡ Hyperlocal 15-25 min delivery in your area</span>
+            <span>⚡ Hyperlocal doorstep delivery in your area</span>
           </div>
         </div>
       </footer>
@@ -1137,15 +1134,12 @@ export default function App() {
                 {storeClosedNotice.message}
               </p>
             </div>
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-2xl text-xs font-extrabold text-rose-900">
-              ⏰ Operating Hours: {storeClosedNotice.openFormatted} to {storeClosedNotice.closeFormatted}
-            </div>
             <button
               type="button"
               onClick={() => setStoreClosedNotice(null)}
               className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-extrabold rounded-2xl text-sm shadow-md transition-all cursor-pointer"
             >
-              OK, I Will Order During Store Hours
+              OK, Understood
             </button>
           </div>
         </div>

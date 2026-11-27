@@ -127,7 +127,7 @@ export default function PrivacyPolicyModal() {
               <span>2. How We Use Your Information</span>
             </h4>
             <ul className="list-disc list-inside space-y-1.5 text-gray-600 pl-1">
-              <li>To deliver groceries, food, and daily essentials to your doorstep in 15–25 minutes.</li>
+              <li>To deliver groceries, food, and daily essentials quickly to your doorstep.</li>
               <li>To calculate precise distance from our store hub and compute transparent delivery fee slabs.</li>
               <li>To send order confirmation and dispatch notifications via WhatsApp and SMS.</li>
               <li>To track your loyalty stamp rewards (1 stamp for ₹250+ orders, Free Surprise Gift on 10 stamps).</li>

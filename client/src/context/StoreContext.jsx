@@ -151,7 +151,7 @@ export const DEFAULT_OFFERS = [
   {
     id: 'offer-3',
     title: 'Hot Fast Food Craving Hour',
-    subtitle: 'Sizzling burgers, pizzas & rolls delivered piping hot in 25 mins.',
+    subtitle: 'Sizzling burgers, pizzas & rolls delivered piping hot.',
     code: 'HOTBITES',
     discount_tag: 'FLAT ₹30 OFF',
     discount_type: 'flat',

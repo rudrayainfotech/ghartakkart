@@ -411,7 +411,7 @@ export default function InvoiceModal({ order, onClose }) {
                 {order.delivery_slot && (
                   <div className="flex justify-between">
                     <span>SLOT:</span>
-                    <span className="font-black">{order.delivery_slot}</span>
+                    <span className="font-black">{String(order.delivery_slot).replace(/\s*\(.*?\)/g, '').trim()}</span>
                   </div>
                 )}
                 {assignedRider && (
@@ -613,7 +613,7 @@ export default function InvoiceModal({ order, onClose }) {
                 {order.delivery_slot && (
                   <div className="flex justify-between">
                     <span>SLOT:</span>
-                    <span className="font-black">{order.delivery_slot}</span>
+                    <span className="font-black">{String(order.delivery_slot).replace(/\s*\(.*?\)/g, '').trim()}</span>
                   </div>
                 )}
                 {assignedRider && (
@@ -786,7 +786,7 @@ export default function InvoiceModal({ order, onClose }) {
                   </span>
                   <p>Distance from Hub: <strong className="text-gray-900">{order.distance_km} km</strong></p>
                   {order.delivery_slot && (
-                    <p>Delivery Slot: <strong className="text-brand-700">{order.delivery_slot}</strong></p>
+                    <p>Delivery Slot: <strong className="text-brand-700">{String(order.delivery_slot).replace(/\s*\(.*?\)/g, '').trim()}</strong></p>
                   )}
                   <p>Payment Mode: <strong className="text-gray-900">{order.payment_method}</strong></p>
                   <p>Payment Status: <strong className="text-emerald-700 font-bold">{order.payment_status}</strong></p>

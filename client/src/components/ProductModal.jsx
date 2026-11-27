@@ -249,12 +249,6 @@ export default function ProductModal() {
 
               {/* Badges / Compliance */}
               <div className="mt-4 space-y-2 pt-3 border-t border-gray-100 text-xs text-gray-600">
-                {product.prep_time_mins && (
-                  <div className="flex items-center gap-2 text-amber-700 font-medium">
-                    <Clock className="w-4 h-4 shrink-0" />
-                    <span>Kitchen Prep Time: {product.prep_time_mins} mins</span>
-                  </div>
-                )}
                 <div className="flex items-center gap-2 text-emerald-700">
                   <Truck className="w-4 h-4 shrink-0" />
                   <span>Delivered fresh in clean hygienic packing</span>

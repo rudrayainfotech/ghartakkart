@@ -627,7 +627,7 @@ export default function CartDrawer() {
               >
                 {!storeStatus.isOpen ? (
                   <span className="w-full text-center">
-                    ⏰ Store Closed — Orders Only {storeStatus.openFormatted} – {storeStatus.closeFormatted}
+                    ⏰ Store Currently Closed
                   </span>
                 ) : (
                   <>

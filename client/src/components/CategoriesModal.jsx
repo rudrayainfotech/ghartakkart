@@ -223,7 +223,7 @@ export default function CategoriesModal() {
 
         {/* Modal Footer */}
         <div className="px-5 py-3 bg-gray-50 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
-          <span>⚡ Delivered in 15–25 mins right to your doorstep</span>
+          <span>⚡ Delivered right to your doorstep</span>
           <button
             type="button"
             onClick={() => setIsCategoriesModalOpen(false)}

@@ -26,7 +26,8 @@ import {
   Tag,
   Trash2,
   Wallet,
-  Ban
+  Ban,
+  Truck
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { playChime } from '../utils/sound.js';
@@ -83,7 +84,7 @@ export default function CheckoutModal() {
 
   const [customerName, setCustomerName] = useState(customerUser?.name || '');
   const [customerPhone, setCustomerPhone] = useState(customerUser?.phone || '');
-  const [deliverySlot, setDeliverySlot] = useState('Express (15-25 Mins)');
+  const [deliverySlot, setDeliverySlot] = useState('Express Delivery');
   const [autoAppliedNotice, setAutoAppliedNotice] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('Online Payment (Razorpay)');
   const [deliveryInstructions, setDeliveryInstructions] = useState('');
@@ -1493,9 +1494,6 @@ export default function CheckoutModal() {
                     <p className="font-semibold text-rose-800 leading-relaxed">
                       {timingBlockError || storeStatus.message}
                     </p>
-                    <p className="text-[11px] text-rose-700 font-bold">
-                      Store Timing: {storeStatus.openFormatted} to {storeStatus.closeFormatted} ({storeStatus.daysOpen})
-                    </p>
                   </div>
                 </div>
               )}
@@ -1592,62 +1590,19 @@ export default function CheckoutModal() {
                 </div>
               </div>
 
-              {/* Dynamic Estimated Delivery Timing Card (Distance + Category Prep Time) */}
-              <div className="bg-gradient-to-r from-emerald-50 via-teal-50 to-amber-50/60 rounded-2xl p-4 border border-emerald-200 shadow-xs space-y-2.5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-700 text-white flex items-center justify-center font-black shadow-sm shrink-0">
-                      <Clock className="w-4 h-4 text-white" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-black text-gray-900 text-sm">
-                          ⚡ Estimated Delivery: {deliveryTimingInfo.summaryBadge}
-                        </span>
-                        <span className="bg-emerald-600 text-white text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-                          Dynamic ETA
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-gray-600 mt-0.5">
-                        Distance ({deliveryTimingInfo.distanceKm.toFixed(1)} km) + {deliveryTimingInfo.prepCategoryLabel}
-                      </p>
-                    </div>
-                  </div>
+              {/* Express Doorstep Delivery Notice */}
+              <div className="bg-emerald-50/80 rounded-2xl p-3 border border-emerald-200 flex items-center gap-3 text-xs">
+                <div className="w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-black shadow-xs shrink-0">
+                  <Truck className="w-4 h-4 text-white" />
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-emerald-200/70 text-xs">
-                  <div className="flex items-center gap-2 bg-white/90 p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                    <span className="text-base">🏍️</span>
-                    <div className="min-w-0">
-                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">Transit Travel Time</p>
-                      <p className="font-extrabold text-gray-800 text-xs">
-                        ~{deliveryTimingInfo.transitMin}–{deliveryTimingInfo.transitMax} mins ({deliveryTimingInfo.distanceKm.toFixed(1)} km)
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2 bg-white/90 p-2.5 rounded-xl border border-emerald-100 shadow-2xs">
-                    <span className="text-base">{deliveryTimingInfo.hasFastFood ? '🍳' : deliveryTimingInfo.hasFreshProduce ? '🥗' : '📦'}</span>
-                    <div className="min-w-0">
-                      <p className="text-[9px] text-gray-500 font-bold uppercase tracking-wider">{deliveryTimingInfo.prepCategoryLabel}</p>
-                      <p className="font-extrabold text-emerald-800 text-xs">
-                        ~{deliveryTimingInfo.prepMin}–{deliveryTimingInfo.prepMax} mins {deliveryTimingInfo.hasFastFood ? '(Kitchen Cooking)' : '(Picking & Packing)'}
-                      </p>
-                    </div>
-                  </div>
+                <div className="flex-1 min-w-0">
+                  <span className="font-black text-gray-900 block">
+                    ⚡ Express Doorstep Delivery
+                  </span>
+                  <span className="text-[11px] text-gray-600 block">
+                    Direct rider dispatch from GharTak Kart hub ({deliveryTimingInfo.distanceKm.toFixed(1)} km)
+                  </span>
                 </div>
-
-                {deliveryTimingInfo.hasFastFood ? (
-                  <div className="text-[11px] font-bold text-amber-950 bg-amber-100/80 p-2 rounded-xl border border-amber-300 flex items-center gap-2">
-                    <span className="text-base shrink-0">🍔</span>
-                    <span>Contains freshly cooked Fast Food! Total time includes kitchen preparation + transit for hot & crisp delivery.</span>
-                  </div>
-                ) : deliveryTimingInfo.hasFreshProduce ? (
-                  <div className="text-[11px] font-bold text-teal-950 bg-teal-100/70 p-2 rounded-xl border border-teal-300 flex items-center gap-2">
-                    <span className="text-base shrink-0">🥗</span>
-                    <span>Includes fresh produce / sweets. Carefully weighed & packed before rider dispatch.</span>
-                  </div>
-                ) : null}
               </div>
 
               {/* Customer Contact Details */}
@@ -2232,7 +2187,7 @@ export default function CheckoutModal() {
                   ) : isOutOfRadius ? (
                     <span className="flex items-center gap-1.5"><Ban className="w-4 h-4" /> 🚫 Out of Delivery Area ({effectiveDistanceKm} km)</span>
                   ) : !storeStatus.isOpen ? (
-                    <span>⏰ Orders Only {storeStatus.openFormatted} – {storeStatus.closeFormatted}</span>
+                    <span>Store Currently Closed</span>
                   ) : isSubmitting ? (
                     <span className="flex items-center gap-2">
                       <Loader2 className="w-4 h-4 animate-spin" />

@@ -73,8 +73,8 @@ export function getStoreOperatingStatus(settings, now = new Date()) {
       openFormatted,
       closeFormatted,
       daysOpen,
-      title: `Store is Currently Closed (Hours: ${openFormatted} – ${closeFormatted})`,
-      message: `Our store is currently closed for orders. We accept orders only during our store operating hours from ${openFormatted} to ${closeFormatted}. Please place your order during these hours.`
+      title: 'Store is Currently Closed',
+      message: 'Our store is currently closed for orders. Please check back later.'
     };
   }
 
@@ -99,11 +99,6 @@ export function getStoreOperatingStatus(settings, now = new Date()) {
   }
 
   if (!withinHours) {
-    const timingMessage =
-      reason === 'before_open'
-        ? `Our store is currently closed. We accept orders only between ${openFormatted} and ${closeFormatted}. Please place your order between ${openFormatted} and ${closeFormatted}.`
-        : `Our store is closed for today (Closing Time: ${closeFormatted}). We accept orders only between ${openFormatted} and ${closeFormatted}. Please place your order tomorrow starting at ${openFormatted}.`;
-
     return {
       isOpen: false,
       reason,
@@ -112,8 +107,8 @@ export function getStoreOperatingStatus(settings, now = new Date()) {
       openFormatted,
       closeFormatted,
       daysOpen,
-      title: `Store is Closed Now (Operating Hours: ${openFormatted} – ${closeFormatted})`,
-      message: timingMessage
+      title: 'Store is Currently Closed',
+      message: 'Our store is currently closed for orders. Please check back later.'
     };
   }
 
@@ -125,8 +120,8 @@ export function getStoreOperatingStatus(settings, now = new Date()) {
     openFormatted,
     closeFormatted,
     daysOpen,
-    title: `Open Now (${openFormatted} – ${closeFormatted})`,
-    message: `Orders are being accepted now (${openFormatted} – ${closeFormatted}).`
+    title: 'Store is Open',
+    message: 'Orders are being accepted now.'
   };
 }
 
@@ -216,9 +211,9 @@ export function calculateDeliveryTime({ distanceKm = 1, items = [], settings = n
   const friendlyMin = Math.max(10, Math.round(combinedMin / 5) * 5);
   const friendlyMax = Math.max(friendlyMin + 5, Math.round(combinedMax / 5) * 5);
 
-  const slotLabel = `Express (${friendlyMin}-${friendlyMax} Mins)`;
-  const summaryBadge = `${friendlyMin}-${friendlyMax} mins`;
-  const detailText = `${friendlyMin}-${friendlyMax} mins (${dist.toFixed(1)} km · ${hasFastFood ? 'Fast Food Prep + Travel' : hasFreshProduce ? 'Fresh Packing + Travel' : 'Express Delivery'})`;
+  const slotLabel = 'Express Delivery';
+  const summaryBadge = 'Express Delivery';
+  const detailText = `Express Delivery (${dist.toFixed(1)} km · ${hasFastFood ? 'Fast Food' : hasFreshProduce ? 'Fresh Packing' : 'Express Delivery'})`;
 
   return {
     distanceKm: dist,

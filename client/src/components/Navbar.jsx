@@ -74,9 +74,7 @@ export default function Navbar() {
           <div className="flex items-center gap-1.5">
             <span className={`w-2 h-2 rounded-full inline-block ${!storeStatus.isOpen ? 'bg-rose-400 animate-pulse' : 'bg-emerald-400'}`} />
             <span>
-              {!storeStatus.isOpen
-                ? `Closed Now (Timing: ${storeStatus.openFormatted} – ${storeStatus.closeFormatted})`
-                : `Open Now: ${storeStatus.openFormatted} – ${storeStatus.closeFormatted}`}
+              {!storeStatus.isOpen ? 'Closed Now' : 'Open Now'}
             </span>
           </div>
           <a

@@ -75,8 +75,8 @@ export default function OrderTrackerModal({ orderId, onClose, onOpenInvoice }) {
                 </span>
               </div>
               <p className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5 mt-0.5">
-                <span>⚡ Estimated Delivery:</span>
-                <strong className="text-emerald-700 font-bold">{order.delivery_slot || 'Express (15-25 Mins)'}</strong>
+                <span>⚡ Delivery:</span>
+                <strong className="text-emerald-700 font-bold">Express Doorstep Delivery</strong>
               </p>
             </div>
           </div>

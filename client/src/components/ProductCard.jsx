@@ -126,14 +126,6 @@ export default function ProductCard({ product }) {
           )}
         </div>
 
-        {/* Fast food prep time tag */}
-        {product.prep_time_mins && (
-          <div className="absolute bottom-2 left-2 bg-black/75 backdrop-blur-md text-white text-[10px] font-semibold px-2 py-0.5 rounded-md flex items-center gap-1 shadow-sm">
-            <Clock className="w-3 h-3 text-amber-400" />
-            <span>{product.prep_time_mins} mins</span>
-          </div>
-        )}
-
         {/* Multi-Weight Options Badge on Image */}
         {variants.length > 1 && (
           <div className="absolute bottom-2 right-2 bg-brand-700/90 backdrop-blur-md text-white text-[9px] font-extrabold px-2 py-0.5 rounded-md shadow-sm">
