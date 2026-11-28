@@ -58,11 +58,6 @@ export default function AuthModal() {
     setEditEmail(customerUser?.email || '');
   }, [customerUser?.name, customerUser?.email]);
 
-  if (!isAuthModalOpen) return null;
-
-  const liveActiveStamps = customerStampStatus?.activeStamps ?? (customerUser?.stamps || 0);
-  const liveSurpriseGifts = customerStampStatus?.surpriseGifts ?? (customerUser?.surpriseGifts || 0);
-
   // Filter orders belonging to this customer phone or last placed order ID, sorted newest-first
   const lastPhone = typeof window !== 'undefined' ? (localStorage.getItem('gk_last_customer_phone') || '') : '';
   const lastOrderId = typeof window !== 'undefined' ? localStorage.getItem('gk_last_customer_order_id') : null;
@@ -77,6 +72,11 @@ export default function AuthModal() {
       })
       .sort((a, b) => new Date(b.created_at || b.updated_at || 0) - new Date(a.created_at || a.updated_at || 0));
   }, [orders, lastOrderId, customerUser?.phone, lastPhone]);
+
+  if (!isAuthModalOpen) return null;
+
+  const liveActiveStamps = customerStampStatus?.activeStamps ?? (customerUser?.stamps || 0);
+  const liveSurpriseGifts = customerStampStatus?.surpriseGifts ?? (customerUser?.surpriseGifts || 0);
 
   // Invoked when user completes login authentication
   const handleLoginSuccess = (userData) => {
